@@ -128,9 +128,16 @@ class MongoAdminRepository:
         return integration_from_doc(doc) if doc else None
 
     def set_integration_enabled(self, integration_id: str, enabled: bool) -> ProjectIntegration | None:
+        now = utc_now()
+        updates: dict[str, Any] = {"enabled": enabled, "updated_at": now}
+        if enabled:
+            updates.update({"last_status": "pending", "last_error": None})
+        else:
+            updates.update({"last_status": "disabled", "last_error": None})
+
         doc = self._integrations.find_one_and_update(
             {"_id": to_object_id(integration_id)},
-            {"$set": {"enabled": enabled, "updated_at": utc_now()}},
+            {"$set": updates},
             return_document=ReturnDocument.AFTER,
         )
         return integration_from_doc(doc) if doc else None
@@ -256,7 +263,14 @@ class InMemoryAdminRepository:
         doc = self._integrations.get(integration_id)
         if not doc:
             return None
-        doc.update({"enabled": enabled, "updated_at": utc_now()})
+        doc.update(
+            {
+                "enabled": enabled,
+                "updated_at": utc_now(),
+                "last_status": "pending" if enabled else "disabled",
+                "last_error": None,
+            }
+        )
         return integration_from_doc(doc)
 
     def update_integration_poll_result(

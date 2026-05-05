@@ -261,6 +261,11 @@ th {
   color: var(--medium);
 }
 
+.status.disabled {
+  background: #edf1f4;
+  color: var(--muted);
+}
+
 .severity.high {
   background: #fff2d6;
   color: var(--high);
