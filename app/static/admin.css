@@ -61,6 +61,11 @@ h2 {
   font-size: 18px;
 }
 
+h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
 nav {
   display: flex;
   gap: 8px;
@@ -147,7 +152,8 @@ button:hover,
   padding: 10px;
 }
 
-.source-form {
+.source-form,
+.integration-form {
   display: grid;
   grid-template-columns: minmax(220px, 1fr) minmax(180px, 320px) auto;
   gap: 14px;
@@ -181,8 +187,9 @@ select {
   background: #ffffff;
 }
 
-.source-form-extended {
-  grid-template-columns: minmax(220px, 1.4fr) minmax(160px, 0.8fr) minmax(120px, 0.6fr) minmax(120px, 0.6fr) minmax(160px, 0.8fr) minmax(160px, 0.8fr) auto;
+.source-form-extended,
+.integration-form-extended {
+  grid-template-columns: minmax(120px, 0.7fr) minmax(120px, 0.6fr) minmax(220px, 1.3fr) minmax(160px, 0.8fr) minmax(120px, 0.6fr) minmax(140px, 0.7fr) minmax(150px, 0.7fr) minmax(150px, 0.7fr) auto;
 }
 
 .muted {
@@ -270,6 +277,45 @@ th {
   margin-bottom: 0;
 }
 
+.project-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.project-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+}
+
+.project-card span,
+.group-heading span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.project-detections {
+  display: grid;
+  gap: 18px;
+}
+
+.project-detection-group {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.group-heading {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
 .detection-list {
   display: grid;
   gap: 12px;
@@ -351,6 +397,7 @@ pre {
   }
 
   .source-form,
+  .integration-form,
   dl {
     grid-template-columns: 1fr;
   }

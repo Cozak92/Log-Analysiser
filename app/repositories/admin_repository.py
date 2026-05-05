@@ -8,36 +8,38 @@ from bson import ObjectId
 from pymongo import ASCENDING, DESCENDING, MongoClient, ReturnDocument
 
 from app.config import Settings
-from app.schemas.admin import DetectionRecord, KibanaSource
+from app.schemas.admin import DetectionRecord, IntegrationType, ProjectIntegration
 
 
 class AdminRepository(Protocol):
     def ensure_indexes(self) -> None:
         ...
 
-    def upsert_source(
+    def upsert_integration(
         self,
         *,
-        kibana_url: str,
-        data_view_name: str,
+        project_name: str,
+        integration_type: str,
+        endpoint_url: str,
+        resource_name: str,
         analyzer_mode: str,
         llm_provider: str,
         llm_model: str | None,
-    ) -> KibanaSource:
+    ) -> ProjectIntegration:
         ...
 
-    def list_sources(self) -> list[KibanaSource]:
+    def list_integrations(self) -> list[ProjectIntegration]:
         ...
 
-    def get_source(self, source_id: str) -> KibanaSource | None:
+    def get_integration(self, integration_id: str) -> ProjectIntegration | None:
         ...
 
-    def set_source_enabled(self, source_id: str, enabled: bool) -> KibanaSource | None:
+    def set_integration_enabled(self, integration_id: str, enabled: bool) -> ProjectIntegration | None:
         ...
 
-    def update_source_poll_result(
+    def update_integration_poll_result(
         self,
-        source_id: str,
+        integration_id: str,
         *,
         status: str,
         fetched_count: int,
@@ -57,31 +59,45 @@ class MongoAdminRepository:
     def __init__(self, settings: Settings) -> None:
         self._client = MongoClient(settings.mongo_uri, serverSelectionTimeoutMS=1_000)
         self._db = self._client[settings.mongo_db_name]
-        self._sources = self._db["kibana_sources"]
+        self._integrations = self._db["project_integrations"]
         self._detections = self._db["detections"]
 
     def ensure_indexes(self) -> None:
-        self._sources.create_index(
-            [("kibana_url", ASCENDING), ("data_view_name", ASCENDING)],
+        self._integrations.create_index(
+            [
+                ("project_name", ASCENDING),
+                ("integration_type", ASCENDING),
+                ("endpoint_url", ASCENDING),
+                ("resource_name", ASCENDING),
+            ],
             unique=True,
-            name="source_identity",
+            name="project_integration_identity",
         )
         self._detections.create_index("fingerprint", unique=True, name="detection_fingerprint")
         self._detections.create_index([("last_seen_at", DESCENDING)], name="detection_last_seen")
+        self._detections.create_index([("project_name", ASCENDING), ("last_seen_at", DESCENDING)], name="detection_project")
         self._detections.create_index([("severity", ASCENDING), ("last_seen_at", DESCENDING)], name="detection_severity")
 
-    def upsert_source(
+    def upsert_integration(
         self,
         *,
-        kibana_url: str,
-        data_view_name: str,
+        project_name: str,
+        integration_type: str,
+        endpoint_url: str,
+        resource_name: str,
         analyzer_mode: str,
         llm_provider: str,
         llm_model: str | None,
-    ) -> KibanaSource:
+    ) -> ProjectIntegration:
         now = utc_now()
-        doc = self._sources.find_one_and_update(
-            {"kibana_url": kibana_url, "data_view_name": data_view_name},
+        identity = {
+            "project_name": project_name,
+            "integration_type": integration_type,
+            "endpoint_url": endpoint_url,
+            "resource_name": resource_name,
+        }
+        doc = self._integrations.find_one_and_update(
+            identity,
             {
                 "$setOnInsert": {
                     "created_at": now,
@@ -90,8 +106,7 @@ class MongoAdminRepository:
                     "last_detected_count": 0,
                 },
                 "$set": {
-                    "kibana_url": kibana_url,
-                    "data_view_name": data_view_name,
+                    **identity,
                     "analyzer_mode": analyzer_mode,
                     "llm_provider": llm_provider,
                     "llm_model": llm_model,
@@ -102,35 +117,35 @@ class MongoAdminRepository:
             upsert=True,
             return_document=ReturnDocument.AFTER,
         )
-        return source_from_doc(doc)
+        return integration_from_doc(doc)
 
-    def list_sources(self) -> list[KibanaSource]:
-        docs = self._sources.find().sort("created_at", DESCENDING)
-        return [source_from_doc(doc) for doc in docs]
+    def list_integrations(self) -> list[ProjectIntegration]:
+        docs = self._integrations.find().sort([("project_name", ASCENDING), ("created_at", DESCENDING)])
+        return [integration_from_doc(doc) for doc in docs]
 
-    def get_source(self, source_id: str) -> KibanaSource | None:
-        doc = self._sources.find_one({"_id": to_object_id(source_id)})
-        return source_from_doc(doc) if doc else None
+    def get_integration(self, integration_id: str) -> ProjectIntegration | None:
+        doc = self._integrations.find_one({"_id": to_object_id(integration_id)})
+        return integration_from_doc(doc) if doc else None
 
-    def set_source_enabled(self, source_id: str, enabled: bool) -> KibanaSource | None:
-        doc = self._sources.find_one_and_update(
-            {"_id": to_object_id(source_id)},
+    def set_integration_enabled(self, integration_id: str, enabled: bool) -> ProjectIntegration | None:
+        doc = self._integrations.find_one_and_update(
+            {"_id": to_object_id(integration_id)},
             {"$set": {"enabled": enabled, "updated_at": utc_now()}},
             return_document=ReturnDocument.AFTER,
         )
-        return source_from_doc(doc) if doc else None
+        return integration_from_doc(doc) if doc else None
 
-    def update_source_poll_result(
+    def update_integration_poll_result(
         self,
-        source_id: str,
+        integration_id: str,
         *,
         status: str,
         fetched_count: int,
         detected_count: int,
         error: str | None,
     ) -> None:
-        self._sources.update_one(
-            {"_id": to_object_id(source_id)},
+        self._integrations.update_one(
+            {"_id": to_object_id(integration_id)},
             {
                 "$set": {
                     "last_polled_at": utc_now(),
@@ -168,26 +183,31 @@ class MongoAdminRepository:
 
 class InMemoryAdminRepository:
     def __init__(self) -> None:
-        self._sources: dict[str, dict[str, Any]] = {}
+        self._integrations: dict[str, dict[str, Any]] = {}
         self._detections: dict[str, dict[str, Any]] = {}
 
     def ensure_indexes(self) -> None:
         return None
 
-    def upsert_source(
+    def upsert_integration(
         self,
         *,
-        kibana_url: str,
-        data_view_name: str,
+        project_name: str,
+        integration_type: str,
+        endpoint_url: str,
+        resource_name: str,
         analyzer_mode: str,
         llm_provider: str,
         llm_model: str | None,
-    ) -> KibanaSource:
+    ) -> ProjectIntegration:
         existing = next(
             (
                 doc
-                for doc in self._sources.values()
-                if doc["kibana_url"] == kibana_url and doc["data_view_name"] == data_view_name
+                for doc in self._integrations.values()
+                if doc["project_name"] == project_name
+                and doc["integration_type"] == integration_type
+                and doc["endpoint_url"] == endpoint_url
+                and doc["resource_name"] == resource_name
             ),
             None,
         )
@@ -202,13 +222,15 @@ class InMemoryAdminRepository:
                     "updated_at": now,
                 }
             )
-            return source_from_doc(existing)
+            return integration_from_doc(existing)
 
-        source_id = uuid4().hex
+        integration_id = uuid4().hex
         doc = {
-            "_id": source_id,
-            "kibana_url": kibana_url,
-            "data_view_name": data_view_name,
+            "_id": integration_id,
+            "project_name": project_name,
+            "integration_type": integration_type,
+            "endpoint_url": endpoint_url,
+            "resource_name": resource_name,
             "analyzer_mode": analyzer_mode,
             "llm_provider": llm_provider,
             "llm_model": llm_model,
@@ -219,34 +241,34 @@ class InMemoryAdminRepository:
             "last_fetched_count": 0,
             "last_detected_count": 0,
         }
-        self._sources[source_id] = doc
-        return source_from_doc(doc)
+        self._integrations[integration_id] = doc
+        return integration_from_doc(doc)
 
-    def list_sources(self) -> list[KibanaSource]:
-        docs = sorted(self._sources.values(), key=lambda doc: doc["created_at"], reverse=True)
-        return [source_from_doc(doc) for doc in docs]
+    def list_integrations(self) -> list[ProjectIntegration]:
+        docs = sorted(self._integrations.values(), key=lambda doc: (doc["project_name"], doc["created_at"]))
+        return [integration_from_doc(doc) for doc in docs]
 
-    def get_source(self, source_id: str) -> KibanaSource | None:
-        doc = self._sources.get(source_id)
-        return source_from_doc(doc) if doc else None
+    def get_integration(self, integration_id: str) -> ProjectIntegration | None:
+        doc = self._integrations.get(integration_id)
+        return integration_from_doc(doc) if doc else None
 
-    def set_source_enabled(self, source_id: str, enabled: bool) -> KibanaSource | None:
-        doc = self._sources.get(source_id)
+    def set_integration_enabled(self, integration_id: str, enabled: bool) -> ProjectIntegration | None:
+        doc = self._integrations.get(integration_id)
         if not doc:
             return None
         doc.update({"enabled": enabled, "updated_at": utc_now()})
-        return source_from_doc(doc)
+        return integration_from_doc(doc)
 
-    def update_source_poll_result(
+    def update_integration_poll_result(
         self,
-        source_id: str,
+        integration_id: str,
         *,
         status: str,
         fetched_count: int,
         detected_count: int,
         error: str | None,
     ) -> None:
-        doc = self._sources.get(source_id)
+        doc = self._integrations.get(integration_id)
         if not doc:
             return
         doc.update(
@@ -289,11 +311,13 @@ def build_admin_repository(settings: Settings) -> AdminRepository:
     return MongoAdminRepository(settings)
 
 
-def source_from_doc(doc: dict[str, Any]) -> KibanaSource:
-    return KibanaSource(
+def integration_from_doc(doc: dict[str, Any]) -> ProjectIntegration:
+    return ProjectIntegration(
         id=str(doc["_id"]),
-        kibana_url=doc["kibana_url"],
-        data_view_name=doc["data_view_name"],
+        project_name=doc.get("project_name", "DEFAULT"),
+        integration_type=doc.get("integration_type", IntegrationType.KIBANA.value),
+        endpoint_url=doc.get("endpoint_url", doc.get("kibana_url", "")),
+        resource_name=doc.get("resource_name", doc.get("data_view_name", "")),
         analyzer_mode=doc.get("analyzer_mode", "auto"),
         llm_provider=doc.get("llm_provider", "mock"),
         llm_model=doc.get("llm_model"),
@@ -311,9 +335,11 @@ def source_from_doc(doc: dict[str, Any]) -> KibanaSource:
 def detection_from_doc(doc: dict[str, Any]) -> DetectionRecord:
     return DetectionRecord(
         id=str(doc["_id"]),
-        source_id=str(doc["source_id"]),
-        kibana_url=doc["kibana_url"],
-        data_view_name=doc["data_view_name"],
+        integration_id=str(doc.get("integration_id", doc.get("source_id", ""))),
+        project_name=doc.get("project_name", "DEFAULT"),
+        integration_type=doc.get("integration_type", IntegrationType.KIBANA.value),
+        endpoint_url=doc.get("endpoint_url", doc.get("kibana_url", "")),
+        resource_name=doc.get("resource_name", doc.get("data_view_name", "")),
         summary=doc["summary"],
         severity=doc["severity"],
         error_type=doc["error_type"],

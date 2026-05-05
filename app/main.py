@@ -11,7 +11,7 @@ from app.config import Settings, get_settings
 from app.repositories.admin_repository import build_admin_repository
 from app.services.analysis_service import AnalysisService
 from app.services.detection_service import DetectionService
-from app.workers.kibana_poller import KibanaPollingWorker
+from app.workers.integration_poller import IntegrationPollingWorker
 
 
 @asynccontextmanager
@@ -24,12 +24,12 @@ async def lifespan(app: FastAPI):
         repository=repository,
         analysis_service=analysis_service,
     )
-    poller = KibanaPollingWorker(settings=settings, detection_service=detection_service)
+    poller = IntegrationPollingWorker(settings=settings, detection_service=detection_service)
 
     app.state.admin_repository = repository
     app.state.analysis_service = analysis_service
     app.state.detection_service = detection_service
-    app.state.kibana_poller = poller
+    app.state.integration_poller = poller
     app.state.admin_startup_error = None
 
     try:
@@ -37,7 +37,7 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         app.state.admin_startup_error = str(exc)
 
-    if settings.kibana_poll_enabled:
+    if settings.polling_enabled:
         await poller.start()
 
     try:

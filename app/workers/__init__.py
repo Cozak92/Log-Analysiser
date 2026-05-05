@@ -1,4 +1,3 @@
-from app.workers.kibana_poller import KibanaPollingWorker
+from app.workers.integration_poller import IntegrationPollingWorker
 
-__all__ = ["KibanaPollingWorker"]
-
+__all__ = ["IntegrationPollingWorker"]
