@@ -9,7 +9,7 @@ from pymongo import ASCENDING, DESCENDING, MongoClient, ReturnDocument
 from pymongo.errors import DuplicateKeyError
 
 from app.config import Settings
-from app.schemas.admin import DetectionRecord, IntegrationType, ProjectIntegration
+from app.schemas.admin import DEFAULT_KIBANA_FOCUS_FIELDS, DetectionRecord, IntegrationType, ProjectIntegration
 
 
 class AdminRepository(Protocol):
@@ -26,6 +26,7 @@ class AdminRepository(Protocol):
         analyzer_mode: str,
         llm_provider: str,
         llm_model: str | None,
+        focus_fields: list[str],
     ) -> ProjectIntegration:
         ...
 
@@ -46,6 +47,7 @@ class AdminRepository(Protocol):
         analyzer_mode: str,
         llm_provider: str,
         llm_model: str | None,
+        focus_fields: list[str],
     ) -> ProjectIntegration | None:
         ...
 
@@ -103,6 +105,7 @@ class MongoAdminRepository:
         analyzer_mode: str,
         llm_provider: str,
         llm_model: str | None,
+        focus_fields: list[str],
     ) -> ProjectIntegration:
         now = utc_now()
         identity = {
@@ -125,6 +128,7 @@ class MongoAdminRepository:
                     "analyzer_mode": analyzer_mode,
                     "llm_provider": llm_provider,
                     "llm_model": llm_model,
+                    "focus_fields": focus_fields,
                     "enabled": True,
                     "updated_at": now,
                 },
@@ -153,6 +157,7 @@ class MongoAdminRepository:
         analyzer_mode: str,
         llm_provider: str,
         llm_model: str | None,
+        focus_fields: list[str],
     ) -> ProjectIntegration | None:
         now = utc_now()
         doc = self._integrations.find_one_and_update(
@@ -166,6 +171,7 @@ class MongoAdminRepository:
                     "analyzer_mode": analyzer_mode,
                     "llm_provider": llm_provider,
                     "llm_model": llm_model,
+                    "focus_fields": focus_fields,
                     "last_status": "pending",
                     "last_error": None,
                     "last_fetched_count": 0,
@@ -275,6 +281,7 @@ class InMemoryAdminRepository:
         analyzer_mode: str,
         llm_provider: str,
         llm_model: str | None,
+        focus_fields: list[str],
     ) -> ProjectIntegration:
         existing = next(
             (
@@ -294,6 +301,7 @@ class InMemoryAdminRepository:
                     "analyzer_mode": analyzer_mode,
                     "llm_provider": llm_provider,
                     "llm_model": llm_model,
+                    "focus_fields": focus_fields,
                     "enabled": True,
                     "updated_at": now,
                 }
@@ -310,6 +318,7 @@ class InMemoryAdminRepository:
             "analyzer_mode": analyzer_mode,
             "llm_provider": llm_provider,
             "llm_model": llm_model,
+            "focus_fields": focus_fields,
             "enabled": True,
             "created_at": now,
             "updated_at": now,
@@ -339,6 +348,7 @@ class InMemoryAdminRepository:
         analyzer_mode: str,
         llm_provider: str,
         llm_model: str | None,
+        focus_fields: list[str],
     ) -> ProjectIntegration | None:
         doc = self._integrations.get(integration_id)
         if not doc:
@@ -352,6 +362,7 @@ class InMemoryAdminRepository:
                 "analyzer_mode": analyzer_mode,
                 "llm_provider": llm_provider,
                 "llm_model": llm_model,
+                "focus_fields": focus_fields,
                 "last_status": "pending",
                 "last_error": None,
                 "last_fetched_count": 0,
@@ -437,6 +448,7 @@ def integration_from_doc(doc: dict[str, Any]) -> ProjectIntegration:
         analyzer_mode=doc.get("analyzer_mode", "auto"),
         llm_provider=doc.get("llm_provider", "mock"),
         llm_model=doc.get("llm_model"),
+        focus_fields=list(doc.get("focus_fields") or DEFAULT_KIBANA_FOCUS_FIELDS),
         enabled=bool(doc.get("enabled", True)),
         created_at=doc["created_at"],
         updated_at=doc["updated_at"],

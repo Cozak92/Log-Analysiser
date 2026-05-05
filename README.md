@@ -97,7 +97,26 @@ Project Integration 관리:
 http://127.0.0.1:8000/admin/integrations
 ```
 
-로컬에서 실제 Kibana 없이 흐름을 확인하려면 Integrations 메뉴에서 Project name에 `GOA` 또는 `DOBO`, Integration type에 `kibana`, Endpoint URL에 `demo://local`, Resource name에 `payments-*` 또는 `db-*`를 입력한 뒤 `Poll now`를 누르면 샘플 로그 기반 탐지 목록이 프로젝트별로 생성됩니다. Integration type을 `kibana` 또는 `sentry`로 바꾸면 입력해야 하는 endpoint/resource 필드의 라벨과 도움말이 함께 변경됩니다.
+로컬에서 실제 Kibana 없이 흐름을 확인하려면 Integrations 메뉴에서 Project name에 `GOA` 또는 `DOBO`, Integration type에 `kibana`, Endpoint URL에 `demo://local`, Resource name에 `payments-*` 또는 `db-*`를 입력한 뒤 `Poll now`를 누르면 샘플 로그 기반 탐지 목록이 프로젝트별로 생성됩니다. Integration type을 `kibana` 또는 `sentry`로 바꾸면 입력해야 하는 endpoint/resource/focus field의 라벨과 도움말이 함께 변경됩니다.
+
+Kibana integration은 `focus_fields`를 설정할 수 있습니다. 예: `@timestamp`, `log.level`, `service.name`, `message`, `error.message`, `error.stack_trace`, `http.response.status_code`. Fetcher는 Kibana `_source`에서 해당 필드만 뽑아 아래 형태의 JSON으로 정리한 뒤 analyzer/LLM 입력으로 보냅니다.
+
+```json
+{
+  "analysis_input_version": "kibana.focus_fields.v1",
+  "project": "GOA",
+  "integration": {
+    "type": "kibana",
+    "resource_name": "db-*"
+  },
+  "focus_fields": ["@timestamp", "message", "error.stack_trace"],
+  "selected_fields": {
+    "message": "...",
+    "error.stack_trace": "..."
+  },
+  "missing_fields": []
+}
+```
 
 ### 3. CLI 실행
 

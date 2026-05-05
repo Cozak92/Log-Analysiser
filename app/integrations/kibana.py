@@ -17,7 +17,7 @@ class KibanaLogFetcher:
 
     async def fetch_recent_logs(self, integration: ProjectIntegration) -> IntegrationFetchResult:
         if integration.endpoint_url.startswith("demo://"):
-            return IntegrationFetchResult(logs=self._load_demo_logs(integration.resource_name))
+            return IntegrationFetchResult(logs=self._load_demo_logs(integration))
 
         base_url = integration.endpoint_url.rstrip("/")
         search_url = f"{base_url}/internal/search/es"
@@ -59,7 +59,7 @@ class KibanaLogFetcher:
                 )
 
             hits = self._extract_hits(response.json())
-            return IntegrationFetchResult(logs=[self._hit_to_log(hit) for hit in hits])
+            return IntegrationFetchResult(logs=[self._hit_to_log(hit, integration) for hit in hits])
         except Exception as exc:
             return IntegrationFetchResult(logs=[], error=f"Kibana fetch failed: {exc}")
 
@@ -74,37 +74,93 @@ class KibanaLogFetcher:
                 return [item for item in candidate if isinstance(item, dict)]
         return []
 
-    def _hit_to_log(self, hit: dict[str, Any]) -> FetchedLog:
+    def _hit_to_log(self, hit: dict[str, Any], integration: ProjectIntegration) -> FetchedLog:
         source = hit.get("_source") if isinstance(hit.get("_source"), dict) else hit
-        timestamp = first_present(source, "@timestamp", "timestamp", "time")
-        level = first_present(source, "level", "log.level", "severity")
-        service = first_present(source, "service.name", "service", "app")
-        message = first_present(source, "message", "log", "error.message")
-        stack = first_present(source, "error.stack_trace", "stack_trace", "exception")
-        status = first_present(source, "http.response.status_code", "status", "status_code")
+        external_id = str(hit.get("_id")) if hit.get("_id") else None
+        return FetchedLog(
+            raw_log=build_kibana_analysis_payload(
+                integration=integration,
+                source=source,
+                external_id=external_id,
+            ),
+            external_id=external_id,
+        )
 
-        parts = [
-            str(value)
-            for value in [timestamp, level, service, f"status={status}" if status else None, message, stack]
-            if value
-        ]
-        if not parts:
-            parts = [json.dumps(source, ensure_ascii=False, default=str)]
-
-        return FetchedLog(raw_log="\n".join(parts), external_id=str(hit.get("_id")) if hit.get("_id") else None)
-
-    def _load_demo_logs(self, resource_name: str) -> list[FetchedLog]:
+    def _load_demo_logs(self, integration: ProjectIntegration) -> list[FetchedLog]:
         sample_dir = Path("samples")
-        sample_name = "db_timeout.log" if "db" in resource_name.lower() else "null_reference.log"
+        sample_name = "db_timeout.log" if "db" in integration.resource_name.lower() else "null_reference.log"
         sample_path = sample_dir / sample_name
+        external_id = f"demo:{sample_name}"
         if sample_path.exists():
-            return [FetchedLog(raw_log=sample_path.read_text(encoding="utf-8"), external_id=f"demo:{sample_name}")]
+            sample_text = sample_path.read_text(encoding="utf-8")
+            source = {
+                "@timestamp": "demo",
+                "log": {"level": "ERROR"},
+                "service": {"name": integration.project_name.lower()},
+                "message": sample_text,
+                "error": {"message": sample_text, "stack_trace": sample_text},
+            }
+            return [
+                FetchedLog(
+                    raw_log=build_kibana_analysis_payload(
+                        integration=integration,
+                        source=source,
+                        external_id=external_id,
+                    ),
+                    external_id=external_id,
+                )
+            ]
+        source = {
+            "@timestamp": "demo",
+            "log": {"level": "ERROR"},
+            "message": "status=500\nAttributeError: 'NoneType' object has no attribute 'email'",
+            "error": {"message": "AttributeError: 'NoneType' object has no attribute 'email'"},
+            "http": {"response": {"status_code": 500}},
+        }
         return [
             FetchedLog(
-                raw_log="status=500\nAttributeError: 'NoneType' object has no attribute 'email'",
+                raw_log=build_kibana_analysis_payload(
+                    integration=integration,
+                    source=source,
+                    external_id="demo:inline",
+                ),
                 external_id="demo:inline",
             )
         ]
+
+
+def build_kibana_analysis_payload(
+    *,
+    integration: ProjectIntegration,
+    source: dict[str, Any],
+    external_id: str | None = None,
+) -> str:
+    selected_fields: dict[str, Any] = {}
+    missing_fields: list[str] = []
+    for field in integration.focus_fields:
+        value = nested_get(source, field)
+        if value in (None, ""):
+            missing_fields.append(field)
+            continue
+        selected_fields[field] = value
+
+    payload = {
+        "analysis_input_version": "kibana.focus_fields.v1",
+        "project": integration.project_name,
+        "integration": {
+            "id": integration.id,
+            "type": integration.integration_type.value,
+            "resource_name": integration.resource_name,
+            "external_id": external_id,
+        },
+        "focus_fields": integration.focus_fields,
+        "selected_fields": selected_fields,
+        "missing_fields": missing_fields,
+        "llm_instruction": "Analyze the selected Kibana fields first. Treat missing fields as unavailable evidence, not proof that the error is absent.",
+    }
+    if not selected_fields:
+        payload["fallback_source_excerpt"] = json.dumps(source, ensure_ascii=False, default=str)[:4_000]
+    return json.dumps(payload, ensure_ascii=False, indent=2, default=str)
 
 
 def first_present(payload: dict[str, Any], *keys: str) -> Any:

@@ -35,6 +35,9 @@ def test_integration_page_loads_dynamic_type_fields() -> None:
     assert "integrationFieldConfig" in response.text
     assert "Sentry URL" in response.text
     assert "Data view name" in response.text
+    assert 'id="focus-fields-input"' in response.text
+    assert "Kibana focus fields" in response.text
+    assert "selected_fields JSON" in response.text
     assert 'id="custom-provider-input"' in response.text
     assert "disabled" in response.text
 
@@ -62,6 +65,7 @@ def test_admin_can_create_project_integration_and_poll_detection() -> None:
     assert summary_response.json()["integrations"][0]["project_name"] == "GOA"
     assert summary_response.json()["integrations"][0]["llm_provider"] == "openai"
     assert summary_response.json()["integrations"][0]["llm_model"] == "gpt-test"
+    assert "message" in summary_response.json()["integrations"][0]["focus_fields"]
     assert summary_response.json()["integrations"][0]["last_status"] == "ok"
     assert summary_response.json()["integrations"][0]["last_fetched_count"] == 1
     assert summary_response.json()["integrations"][0]["last_detected_count"] == 1
@@ -116,6 +120,33 @@ def test_admin_api_accepts_custom_llm_provider() -> None:
     assert integration["last_status"] == "ok"
 
 
+def test_kibana_focus_fields_are_stored_and_sent_as_json_payload() -> None:
+    with build_client() as client:
+        create_response = client.post(
+            "/admin/api/integrations",
+            json={
+                "project_name": "GOA",
+                "integration_type": "kibana",
+                "endpoint_url": "demo://local",
+                "resource_name": "db-*",
+                "analyzer_mode": "mock",
+                "llm_provider": "mock",
+                "focus_fields": ["@timestamp", "message", "error.stack_trace"],
+            },
+        )
+        summary_response = client.get("/admin/api/summary")
+
+    integration = summary_response.json()["integrations"][0]
+    raw_log = summary_response.json()["detections"][0]["raw_log"]
+    assert create_response.status_code == 200
+    assert integration["focus_fields"] == ["@timestamp", "message", "error.stack_trace"]
+    assert '"analysis_input_version": "kibana.focus_fields.v1"' in raw_log
+    assert '"focus_fields": [' in raw_log
+    assert '"selected_fields": {' in raw_log
+    assert '"error.stack_trace"' in raw_log
+    assert "OperationalError" in raw_log
+
+
 def test_admin_api_accepts_sentry_integration_shape() -> None:
     with build_client() as client:
         create_response = client.post(
@@ -164,6 +195,7 @@ def test_registered_integration_can_be_edited() -> None:
                 "analyzer_mode": "mock",
                 "llm_provider": "openai",
                 "llm_model": "gpt-test",
+                "focus_fields": "message\nerror.message",
             },
             follow_redirects=False,
         )
@@ -178,6 +210,7 @@ def test_registered_integration_can_be_edited() -> None:
     assert integration["resource_name"] == "payments-*"
     assert integration["llm_provider"] == "openai"
     assert integration["llm_model"] == "gpt-test"
+    assert integration["focus_fields"] == ["message", "error.message"]
     assert integration["last_status"] == "ok"
 
 

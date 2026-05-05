@@ -68,6 +68,16 @@
             <input id="resource-name-input" name="resource_name" type="text" placeholder="Kibana data view, e.g. payments-*" value="{{ editing_integration.resource_name if editing_integration else '' }}" required>
             <small class="field-help" id="resource-field-help">Kibana data view or index pattern to search.</small>
           </label>
+          <label id="focus-fields-label" class="wide-field">
+            <span id="focus-fields-title">Kibana focus fields</span>
+            <textarea
+              id="focus-fields-input"
+              name="focus_fields"
+              rows="5"
+              placeholder="@timestamp&#10;log.level&#10;service.name&#10;message&#10;error.message&#10;error.stack_trace&#10;http.response.status_code"
+            >{{ editing_integration.focus_fields | join('\n') if editing_integration else '@timestamp\nlevel\nlog.level\nservice.name\nmessage\nerror.message\nerror.stack_trace\nhttp.response.status_code\ntrace.id' }}</textarea>
+            <small class="field-help" id="focus-fields-help">One field path per line or comma separated. These fields become `selected_fields` in the JSON sent to the analyzer/LLM.</small>
+          </label>
           <label>
             Analyzer mode
             <select name="analyzer_mode">
@@ -136,6 +146,7 @@
                 <th>Type</th>
                 <th>Endpoint</th>
                 <th>Resource</th>
+                <th>Focus fields</th>
                 <th>Analyzer</th>
                 <th>Provider</th>
                 <th>Status</th>
@@ -152,6 +163,7 @@
                   <td>{{ integration.integration_type.value }}</td>
                   <td class="mono">{{ integration.endpoint_url }}</td>
                   <td class="mono">{{ integration.resource_name }}</td>
+                  <td class="mono">{{ integration.focus_fields[:4] | join(", ") }}{% if integration.focus_fields | length > 4 %} ...{% endif %}</td>
                   <td>{{ integration.analyzer_mode.value }}</td>
                   <td>
                     {{ integration.llm_provider }}
@@ -174,12 +186,12 @@
                 </tr>
                 {% if integration.last_error %}
                   <tr class="error-row">
-                    <td colspan="11">{{ integration.last_error }}</td>
+                    <td colspan="12">{{ integration.last_error }}</td>
                   </tr>
                 {% endif %}
               {% else %}
                 <tr>
-                  <td colspan="11" class="empty">No project integrations yet. Use `demo://local` with a Kibana data view name to try samples.</td>
+                  <td colspan="12" class="empty">No project integrations yet. Use `demo://local` with a Kibana data view name to try samples.</td>
                 </tr>
               {% endfor %}
             </tbody>
@@ -195,6 +207,9 @@
       const resourceFieldTitle = document.querySelector("#resource-field-title");
       const resourceInput = document.querySelector("#resource-name-input");
       const resourceHelp = document.querySelector("#resource-field-help");
+      const focusFieldsTitle = document.querySelector("#focus-fields-title");
+      const focusFieldsInput = document.querySelector("#focus-fields-input");
+      const focusFieldsHelp = document.querySelector("#focus-fields-help");
       const providerSelect = document.querySelector("#llm-provider-select");
       const customProviderInput = document.querySelector("#custom-provider-input");
       const customProviderLabel = document.querySelector("#custom-provider-label");
@@ -206,7 +221,10 @@
           endpointHelp: "Kibana base URL. Use demo://local for sample logs.",
           resourceTitle: "Data view name",
           resourcePlaceholder: "payments-* or db-*",
-          resourceHelp: "Kibana data view or index pattern to search."
+          resourceHelp: "Kibana data view or index pattern to search.",
+          focusTitle: "Kibana focus fields",
+          focusPlaceholder: "@timestamp\nlog.level\nservice.name\nmessage\nerror.message\nerror.stack_trace\nhttp.response.status_code",
+          focusHelp: "The fetcher extracts these paths from Kibana _source and sends them as selected_fields JSON to the analyzer/LLM."
         },
         sentry: {
           endpointTitle: "Sentry URL",
@@ -214,7 +232,10 @@
           endpointHelp: "Sentry organization URL. Collection is not implemented yet.",
           resourceTitle: "Project slug",
           resourcePlaceholder: "goa-api or dobo-worker",
-          resourceHelp: "Sentry project slug or project identifier for a future fetcher."
+          resourceHelp: "Sentry project slug or project identifier for a future fetcher.",
+          focusTitle: "Future Sentry fields",
+          focusPlaceholder: "title\nculprit\nmetadata.type\nentries.exception.values",
+          focusHelp: "Stored for future Sentry fetcher support. Current Sentry polling still reports fetcher-not-implemented."
         }
       };
 
@@ -226,6 +247,9 @@
         resourceFieldTitle.textContent = config.resourceTitle;
         resourceInput.placeholder = config.resourcePlaceholder;
         resourceHelp.textContent = config.resourceHelp;
+        focusFieldsTitle.textContent = config.focusTitle;
+        focusFieldsInput.placeholder = config.focusPlaceholder;
+        focusFieldsHelp.textContent = config.focusHelp;
       }
 
       function syncCustomProviderState() {

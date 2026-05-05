@@ -51,6 +51,7 @@ async def create_integration(
     llm_provider: str = Form("mock"),
     custom_llm_provider: str | None = Form(None),
     llm_model: str | None = Form(None),
+    focus_fields: str = Form(""),
 ) -> Response:
     repository = get_repository(request)
     try:
@@ -63,6 +64,7 @@ async def create_integration(
             llm_provider=llm_provider,
             custom_llm_provider=custom_llm_provider,
             llm_model=llm_model or None,
+            focus_fields=focus_fields,
         )
         integration = repository.upsert_integration(
             project_name=payload.project_name,
@@ -72,6 +74,7 @@ async def create_integration(
             analyzer_mode=payload.analyzer_mode.value,
             llm_provider=payload.llm_provider,
             llm_model=payload.llm_model,
+            focus_fields=payload.focus_fields,
         )
         await get_detection_service(request).poll_integration(integration)
     except (ValidationError, ValueError) as exc:
@@ -103,6 +106,7 @@ async def edit_integration(
     llm_provider: str = Form("mock"),
     custom_llm_provider: str | None = Form(None),
     llm_model: str | None = Form(None),
+    focus_fields: str = Form(""),
 ) -> Response:
     repository = get_repository(request)
     try:
@@ -115,6 +119,7 @@ async def edit_integration(
             llm_provider=llm_provider,
             custom_llm_provider=custom_llm_provider,
             llm_model=llm_model or None,
+            focus_fields=focus_fields,
         )
         integration = repository.update_integration(
             integration_id,
@@ -125,6 +130,7 @@ async def edit_integration(
             analyzer_mode=payload.analyzer_mode.value,
             llm_provider=payload.llm_provider,
             llm_model=payload.llm_model,
+            focus_fields=payload.focus_fields,
         )
         if not integration:
             raise HTTPException(status_code=404, detail="Project integration not found.")
@@ -170,6 +176,7 @@ async def api_create_integration(payload: ProjectIntegrationCreate, request: Req
         analyzer_mode=payload.analyzer_mode.value,
         llm_provider=payload.llm_provider,
         llm_model=payload.llm_model,
+        focus_fields=payload.focus_fields,
     )
     await get_detection_service(request).poll_integration(integration)
     return {"id": integration.id}

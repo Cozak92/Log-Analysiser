@@ -22,6 +22,18 @@ REPRESENTATIVE_LLM_PROVIDERS = (
     "custom",
 )
 
+DEFAULT_KIBANA_FOCUS_FIELDS = (
+    "@timestamp",
+    "level",
+    "log.level",
+    "service.name",
+    "message",
+    "error.message",
+    "error.stack_trace",
+    "http.response.status_code",
+    "trace.id",
+)
+
 
 class IntegrationType(str, Enum):
     KIBANA = "kibana"
@@ -41,6 +53,7 @@ class ProjectIntegrationCreate(BaseModel):
     llm_provider: str = Field(default="mock", max_length=80)
     custom_llm_provider: str | None = Field(default=None, max_length=80)
     llm_model: str | None = Field(default=None, max_length=120)
+    focus_fields: list[str] = Field(default_factory=lambda: list(DEFAULT_KIBANA_FOCUS_FIELDS), max_length=30)
 
     @field_validator("project_name")
     @classmethod
@@ -90,6 +103,30 @@ class ProjectIntegrationCreate(BaseModel):
         normalized = value.strip()
         return normalized or None
 
+    @field_validator("focus_fields", mode="before")
+    @classmethod
+    def normalize_focus_fields(cls, value: object) -> list[str]:
+        if value is None:
+            return list(DEFAULT_KIBANA_FOCUS_FIELDS)
+        if isinstance(value, str):
+            raw_fields = re.split(r"[\n,]+", value)
+        elif isinstance(value, list):
+            raw_fields = [str(item) for item in value]
+        else:
+            raise ValueError("focus_fields must be a list or comma/newline separated string")
+
+        normalized_fields = []
+        for raw_field in raw_fields:
+            field = raw_field.strip()
+            if not field:
+                continue
+            if not re.fullmatch(r"[@A-Za-z0-9_.\-\[\]]{1,120}", field):
+                raise ValueError("focus_fields must contain dotted field paths using letters, numbers, @, dots, underscores, hyphens, or brackets")
+            if field not in normalized_fields:
+                normalized_fields.append(field)
+
+        return normalized_fields or list(DEFAULT_KIBANA_FOCUS_FIELDS)
+
     @model_validator(mode="after")
     def validate_integration(self) -> "ProjectIntegrationCreate":
         if self.integration_type == IntegrationType.KIBANA and not self.endpoint_url.startswith(
@@ -119,6 +156,7 @@ class ProjectIntegration(BaseModel):
     analyzer_mode: AnalyzerMode = AnalyzerMode.AUTO
     llm_provider: str = "mock"
     llm_model: str | None = None
+    focus_fields: list[str] = Field(default_factory=lambda: list(DEFAULT_KIBANA_FOCUS_FIELDS))
     enabled: bool
     created_at: datetime
     updated_at: datetime

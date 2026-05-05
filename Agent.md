@@ -29,6 +29,7 @@
 - 현재 실제 수집 fetcher는 Kibana
 - Sentry는 integration type과 입력 shape은 열려 있지만 fetcher는 아직 미구현
 - Integration type 선택에 따라 endpoint/resource field label, placeholder, help text가 변경됨
+- Kibana integration은 `focus_fields`를 저장하며, fetcher가 `_source`에서 해당 필드만 `selected_fields` JSON으로 정리해 analyzer/LLM 입력에 사용
 - LLM provider는 integration별로 설정 가능
 - `custom` provider 선택 시에만 custom provider input 활성화
 
@@ -49,6 +50,7 @@
 - `integration_type`: `kibana` 등 관측 도구 종류
 - `endpoint_url`: Kibana/Sentry/custom endpoint URL
 - `resource_name`: Kibana data view 또는 추후 Sentry project slug 같은 리소스명
+- `focus_fields`: Kibana `_source`에서 LLM 분석에 우선 사용할 dotted field path 목록
 - `llm_provider`: `mock`, `openai`, `anthropic`, `gemini`, `azure-openai`, `bedrock`, `vertex-ai`, `openrouter`, `ollama`, `custom`
 - `llm_model`: optional
 
@@ -152,6 +154,18 @@ docker compose config
 그 뒤 `Poll now`를 누르면 샘플 로그 기반 detection이 프로젝트별로 표시됩니다.
 
 Integration type을 `sentry`로 선택하면 UI의 endpoint/resource 필드가 Sentry URL과 project slug 기준으로 바뀝니다. 다만 Sentry fetcher는 아직 없으므로 polling 시 fetcher 미구현 에러가 정상입니다.
+
+Kibana focus fields 예시:
+
+- `@timestamp`
+- `log.level`
+- `service.name`
+- `message`
+- `error.message`
+- `error.stack_trace`
+- `http.response.status_code`
+
+Kibana fetcher는 위 field path들을 `_source`에서 추출해 `analysis_input_version: kibana.focus_fields.v1`, `focus_fields`, `selected_fields`, `missing_fields`를 포함한 JSON 문자열로 만든 뒤 `AnalysisService.analyze_text(...)`에 넘깁니다.
 
 ## LLM Provider 구조
 

@@ -216,6 +216,17 @@ input {
   padding: 11px 12px;
 }
 
+textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+  font: inherit;
+  min-height: 126px;
+  padding: 11px 12px;
+  resize: vertical;
+}
+
 select {
   width: 100%;
   border: 1px solid var(--line);
@@ -229,6 +240,10 @@ select {
 .source-form-extended,
 .integration-form-extended {
   grid-template-columns: minmax(120px, 0.7fr) minmax(120px, 0.6fr) minmax(220px, 1.2fr) minmax(180px, 0.9fr) minmax(120px, 0.6fr) minmax(140px, 0.7fr) minmax(150px, 0.7fr) minmax(150px, 0.7fr) auto;
+}
+
+.wide-field {
+  grid-column: span 2;
 }
 
 .muted {
@@ -507,5 +522,9 @@ pre {
   .integration-form,
   dl {
     grid-template-columns: 1fr;
+  }
+
+  .wide-field {
+    grid-column: auto;
   }
 }
