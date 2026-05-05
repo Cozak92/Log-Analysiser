@@ -30,7 +30,7 @@
       <section class="panel">
         <div class="panel-heading">
           <div>
-            <h2>Register Integration</h2>
+            <h2>{{ "Edit Integration" if editing_integration else "Register Integration" }}</h2>
             <p>Choose a project and integration type. The required endpoint/resource fields change by type.</p>
           </div>
           <form action="/admin/poll-now" method="post">
@@ -38,16 +38,20 @@
           </form>
         </div>
 
-        <form class="integration-form integration-form-extended" action="/admin/integrations" method="post">
+        <form
+          class="integration-form integration-form-extended"
+          action="{{ '/admin/integrations/' ~ editing_integration.id ~ '/edit' if editing_integration else '/admin/integrations' }}"
+          method="post"
+        >
           <label>
             Project name
-            <input name="project_name" type="text" placeholder="GOA or DOBO" required>
+            <input name="project_name" type="text" placeholder="GOA or DOBO" value="{{ editing_integration.project_name if editing_integration else '' }}" required>
           </label>
           <label>
             Integration type
             <select name="integration_type" id="integration-type-select">
               {% for integration_type in integration_type_options %}
-                <option value="{{ integration_type }}">{{ integration_type }}</option>
+                <option value="{{ integration_type }}" {{ "selected" if editing_integration and editing_integration.integration_type.value == integration_type else "" }}>{{ integration_type }}</option>
               {% endfor %}
               {% for integration_type in planned_integration_type_options %}
                 <option value="{{ integration_type }}" disabled>{{ integration_type }} (planned)</option>
@@ -56,38 +60,47 @@
           </label>
           <label id="endpoint-field-label">
             <span id="endpoint-field-title">Endpoint URL</span>
-            <input id="endpoint-url-input" name="endpoint_url" type="text" placeholder="https://kibana.example.com or demo://local" required>
+            <input id="endpoint-url-input" name="endpoint_url" type="text" placeholder="https://kibana.example.com or demo://local" value="{{ editing_integration.endpoint_url if editing_integration else '' }}" required>
             <small class="field-help" id="endpoint-field-help">Kibana base URL. Use demo://local for sample logs.</small>
           </label>
           <label id="resource-field-label">
             <span id="resource-field-title">Resource name</span>
-            <input id="resource-name-input" name="resource_name" type="text" placeholder="Kibana data view, e.g. payments-*" required>
+            <input id="resource-name-input" name="resource_name" type="text" placeholder="Kibana data view, e.g. payments-*" value="{{ editing_integration.resource_name if editing_integration else '' }}" required>
             <small class="field-help" id="resource-field-help">Kibana data view or index pattern to search.</small>
           </label>
           <label>
             Analyzer mode
             <select name="analyzer_mode">
-              <option value="auto">auto</option>
-              <option value="mock">mock</option>
-              <option value="rule-based">rule-based</option>
-              <option value="llm">llm</option>
+              {% for mode in ["auto", "mock", "rule-based", "llm"] %}
+                <option value="{{ mode }}" {{ "selected" if editing_integration and editing_integration.analyzer_mode.value == mode else "" }}>{{ mode }}</option>
+              {% endfor %}
             </select>
           </label>
           <label>
             LLM provider
             <select name="llm_provider" id="llm-provider-select">
               {% for provider in provider_options %}
-                <option value="{{ provider }}">{{ provider }}</option>
+                <option
+                  value="{{ provider }}"
+                  {{ "selected" if editing_integration and ((editing_integration.llm_provider == provider) or (provider == "custom" and editing_integration.llm_provider not in provider_options)) else "" }}
+                >{{ provider }}</option>
               {% endfor %}
             </select>
           </label>
           <label id="custom-provider-label" class="disabled-field">
             Custom provider
-            <input id="custom-provider-input" name="custom_llm_provider" type="text" placeholder="required when provider is custom" disabled>
+            <input
+              id="custom-provider-input"
+              name="custom_llm_provider"
+              type="text"
+              placeholder="required when provider is custom"
+              value="{{ editing_integration.llm_provider if editing_integration and editing_integration.llm_provider not in provider_options else '' }}"
+              disabled
+            >
           </label>
           <label>
             LLM model
-            <input name="llm_model" type="text" list="llm-model-options" placeholder="optional">
+            <input name="llm_model" type="text" list="llm-model-options" placeholder="optional" value="{{ editing_integration.llm_model or '' if editing_integration else '' }}">
             <datalist id="llm-model-options">
               <option value="gpt-4.1-mini"></option>
               <option value="gpt-4.1"></option>
@@ -97,8 +110,11 @@
               <option value="llama3.1"></option>
             </datalist>
           </label>
-          <button type="submit">Add integration</button>
+          <button type="submit">{{ "Update integration" if editing_integration else "Add integration" }}</button>
         </form>
+        {% if editing_integration %}
+          <p class="form-note"><a href="/admin/integrations">Cancel editing</a></p>
+        {% endif %}
         {% if form_error %}
           <p class="form-error">{{ form_error }}</p>
         {% endif %}
@@ -126,7 +142,7 @@
                 <th>Last poll</th>
                 <th>Fetched</th>
                 <th>Detected</th>
-                <th></th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -148,9 +164,12 @@
                   <td>{{ integration.last_fetched_count }}</td>
                   <td>{{ integration.last_detected_count }}</td>
                   <td>
-                    <form action="/admin/integrations/{{ integration.id }}/toggle" method="post">
+                    <div class="action-row compact">
+                      <a class="button-link small secondary" href="/admin/integrations?edit={{ integration.id }}">Edit</a>
+                      <form action="/admin/integrations/{{ integration.id }}/toggle" method="post">
                       <button type="submit" class="small">{{ "Disable" if integration.enabled else "Enable" }}</button>
-                    </form>
+                      </form>
+                    </div>
                   </td>
                 </tr>
                 {% if integration.last_error %}

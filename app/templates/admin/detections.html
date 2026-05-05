@@ -27,59 +27,131 @@
       <section class="panel">
         <div class="panel-heading">
           <div>
-            <h2>Detected Anomalies By Project</h2>
-            <p>Latest anomaly candidates detected from registered project integrations.</p>
+            <h2>Detected Anomalies</h2>
+            <p>Select a project from the dropdown, then click a severity/error item to jump to that detection.</p>
           </div>
-          <form action="/admin/poll-now" method="post">
-            <button type="submit" class="secondary">Poll now</button>
-          </form>
+          <div class="action-row">
+            <form action="/admin/detections" method="get" class="filter-form" id="detection-filter-form">
+              <label>
+                Project
+                <select name="project" onchange="this.form.submit()">
+                  <option value="" {{ "selected" if not selected_project else "" }}>All projects</option>
+                  {% for project_name in project_names %}
+                    <option value="{{ project_name }}" {{ "selected" if selected_project == project_name else "" }}>{{ project_name }}</option>
+                  {% endfor %}
+                </select>
+              </label>
+              <input type="hidden" name="refresh" id="filter-refresh-input" value="{{ refresh_interval }}">
+            </form>
+            <form action="/admin/detections" method="get" class="filter-form" id="refresh-form">
+              {% if selected_project %}
+                <input type="hidden" name="project" value="{{ selected_project }}">
+              {% endif %}
+              <label>
+                Auto refresh
+                <select name="refresh" id="refresh-select">
+                  <option value="off" {{ "selected" if refresh_interval == "off" else "" }}>Off</option>
+                  <option value="10" {{ "selected" if refresh_interval == "10" else "" }}>Every 10s</option>
+                  <option value="30" {{ "selected" if refresh_interval == "30" else "" }}>Every 30s</option>
+                </select>
+              </label>
+            </form>
+            <form action="/admin/poll-now{% if selected_project %}?project={{ selected_project }}{% endif %}" method="post">
+              <button type="submit" class="secondary">Poll now</button>
+            </form>
+          </div>
         </div>
 
-        <div class="project-detections">
-          {% for project_name, project_detections in detections_by_project.items() %}
-            <section class="project-detection-group">
-              <div class="group-heading">
-                <h3>{{ project_name }}</h3>
-                <span>{{ project_detections | length }} detections</span>
+        {% if filtered_detections %}
+          <nav class="detection-index" aria-label="Detection shortcuts">
+            {% for detection in filtered_detections %}
+              <a href="#detection-{{ detection.id }}">
+                <span class="severity {{ detection.severity }}">{{ detection.severity }}</span>
+                <strong>{{ detection.error_type }}</strong>
+                <small>{{ detection.project_name }} / seen {{ detection.seen_count }}</small>
+              </a>
+            {% endfor %}
+          </nav>
+        {% endif %}
+
+        <div class="detection-list expanded flat-list">
+          {% for detection in filtered_detections %}
+            <article class="detection-item" id="detection-{{ detection.id }}">
+              <div class="detection-head">
+                <div>
+                  <a class="detection-title-link" href="#detection-{{ detection.id }}">
+                    <span class="severity {{ detection.severity }}">{{ detection.severity }}</span>
+                    <strong>{{ detection.error_type }}</strong>
+                  </a>
+                </div>
+                <small>{{ detection.last_seen_at }}</small>
               </div>
-              <div class="detection-list expanded">
-                {% for detection in project_detections %}
-                  <article class="detection-item">
-                    <div class="detection-head">
-                      <div>
-                        <span class="severity {{ detection.severity }}">{{ detection.severity }}</span>
-                        <strong>{{ detection.error_type }}</strong>
-                      </div>
-                      <small>{{ detection.last_seen_at }}</small>
-                    </div>
-                    <p>{{ detection.summary }}</p>
-                    <dl>
-                      <div><dt>Project</dt><dd>{{ detection.project_name }}</dd></div>
-                      <div><dt>Integration</dt><dd>{{ detection.integration_type.value }}</dd></div>
-                      <div><dt>Resource</dt><dd>{{ detection.resource_name }}</dd></div>
-                      <div><dt>Analyzer</dt><dd>{{ detection.analyzer_used }}</dd></div>
-                      <div><dt>LLM provider</dt><dd>{{ detection.llm_provider }}{% if detection.llm_model %} / {{ detection.llm_model }}{% endif %}</dd></div>
-                      <div><dt>Seen</dt><dd>{{ detection.seen_count }}</dd></div>
-                    </dl>
-                    <details>
-                      <summary>Raw log</summary>
-                      <pre>{{ detection.raw_log }}</pre>
-                    </details>
-                    {% if detection.report_markdown %}
-                      <details>
-                        <summary>Analysis report</summary>
-                        <pre>{{ detection.report_markdown }}</pre>
-                      </details>
-                    {% endif %}
-                  </article>
-                {% endfor %}
-              </div>
-            </section>
+              <p>{{ detection.summary }}</p>
+              <dl>
+                <div><dt>Project</dt><dd>{{ detection.project_name }}</dd></div>
+                <div><dt>Integration</dt><dd>{{ detection.integration_type.value }}</dd></div>
+                <div><dt>Resource</dt><dd>{{ detection.resource_name }}</dd></div>
+                <div><dt>Analyzer</dt><dd>{{ detection.analyzer_used }}</dd></div>
+                <div><dt>LLM provider</dt><dd>{{ detection.llm_provider }}{% if detection.llm_model %} / {{ detection.llm_model }}{% endif %}</dd></div>
+                <div><dt>Seen</dt><dd>{{ detection.seen_count }}</dd></div>
+              </dl>
+              <details>
+                <summary>Raw log</summary>
+                <pre>{{ detection.raw_log }}</pre>
+              </details>
+              {% if detection.report_markdown %}
+                <details>
+                  <summary>Analysis report</summary>
+                  <pre>{{ detection.report_markdown }}</pre>
+                </details>
+              {% endif %}
+            </article>
           {% else %}
             <p class="empty">No detections yet.</p>
           {% endfor %}
         </div>
       </section>
     </main>
+    <script>
+      const refreshSelect = document.querySelector("#refresh-select");
+      const refreshForm = document.querySelector("#refresh-form");
+      const filterRefreshInput = document.querySelector("#filter-refresh-input");
+      const refreshStorageKey = "log-analysis-admin-refresh";
+      let refreshTimer = null;
+
+      function applyRefresh(interval) {
+        if (refreshTimer) {
+          window.clearTimeout(refreshTimer);
+        }
+        localStorage.setItem(refreshStorageKey, interval);
+        filterRefreshInput.value = interval;
+        if (interval === "10" || interval === "30") {
+          refreshTimer = window.setTimeout(() => {
+            window.location.reload();
+          }, Number(interval) * 1000);
+        }
+      }
+
+      function initializeRefresh() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlRefresh = urlParams.get("refresh");
+        const storedRefresh = localStorage.getItem(refreshStorageKey);
+        const initialRefresh = urlRefresh || storedRefresh || "{{ refresh_interval }}";
+        if (["off", "10", "30"].includes(initialRefresh)) {
+          refreshSelect.value = initialRefresh;
+          applyRefresh(initialRefresh);
+          if (!urlRefresh && storedRefresh && storedRefresh !== "off") {
+            urlParams.set("refresh", storedRefresh);
+            window.history.replaceState(null, "", `${window.location.pathname}?${urlParams.toString()}`);
+          }
+        }
+      }
+
+      refreshSelect.addEventListener("change", () => {
+        applyRefresh(refreshSelect.value);
+        refreshForm.submit();
+      });
+      initializeRefresh();
+    </script>
   </body>
 </html>

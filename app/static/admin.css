@@ -143,6 +143,11 @@ button:hover,
   justify-content: flex-end;
 }
 
+.action-row.compact {
+  align-items: center;
+  justify-content: flex-start;
+}
+
 .notice.warning {
   background: var(--warning-bg);
   color: var(--warning);
@@ -157,6 +162,26 @@ button:hover,
 .form-error {
   border-radius: 6px;
   padding: 10px;
+}
+
+.form-note {
+  color: var(--muted);
+  margin: 12px 0 0;
+}
+
+.form-note a,
+.group-heading a,
+.detection-title-link,
+.detection-item a {
+  color: var(--accent-strong);
+  text-decoration: none;
+}
+
+.form-note a:hover,
+.group-heading a:hover,
+.detection-title-link:hover,
+.detection-item a:hover {
+  text-decoration: underline;
 }
 
 .source-form,
@@ -310,6 +335,21 @@ th {
   padding: 16px;
 }
 
+.project-card-link {
+  color: inherit;
+  text-decoration: none;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+
+.project-card-link:hover {
+  border-color: var(--accent);
+  box-shadow: 0 8px 24px rgba(15, 118, 110, 0.12);
+  transform: translateY(-1px);
+}
+
 .project-card span,
 .group-heading span {
   color: var(--muted);
@@ -344,10 +384,48 @@ th {
   gap: 16px;
 }
 
+.detection-list.flat-list {
+  margin-top: 18px;
+}
+
+.detection-index {
+  align-items: stretch;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  margin-bottom: 18px;
+}
+
+.detection-index a {
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text);
+  display: flex;
+  gap: 8px;
+  padding: 10px;
+  text-decoration: none;
+}
+
+.detection-index a:hover {
+  border-color: var(--accent);
+}
+
+.detection-index small {
+  color: var(--muted);
+  margin-left: auto;
+}
+
 .detection-item {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 16px;
+  scroll-margin-top: 24px;
+}
+
+.detection-item:target {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.14);
 }
 
 .detection-item p {
@@ -365,6 +443,16 @@ th {
   display: flex;
   justify-content: space-between;
   gap: 12px;
+}
+
+.detection-title-link {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+}
+
+.filter-form {
+  min-width: 220px;
 }
 
 dl {

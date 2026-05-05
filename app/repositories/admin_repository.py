@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from bson import ObjectId
 from pymongo import ASCENDING, DESCENDING, MongoClient, ReturnDocument
+from pymongo.errors import DuplicateKeyError
 
 from app.config import Settings
 from app.schemas.admin import DetectionRecord, IntegrationType, ProjectIntegration
@@ -32,6 +33,20 @@ class AdminRepository(Protocol):
         ...
 
     def get_integration(self, integration_id: str) -> ProjectIntegration | None:
+        ...
+
+    def update_integration(
+        self,
+        integration_id: str,
+        *,
+        project_name: str,
+        integration_type: str,
+        endpoint_url: str,
+        resource_name: str,
+        analyzer_mode: str,
+        llm_provider: str,
+        llm_model: str | None,
+    ) -> ProjectIntegration | None:
         ...
 
     def set_integration_enabled(self, integration_id: str, enabled: bool) -> ProjectIntegration | None:
@@ -127,6 +142,41 @@ class MongoAdminRepository:
         doc = self._integrations.find_one({"_id": to_object_id(integration_id)})
         return integration_from_doc(doc) if doc else None
 
+    def update_integration(
+        self,
+        integration_id: str,
+        *,
+        project_name: str,
+        integration_type: str,
+        endpoint_url: str,
+        resource_name: str,
+        analyzer_mode: str,
+        llm_provider: str,
+        llm_model: str | None,
+    ) -> ProjectIntegration | None:
+        now = utc_now()
+        doc = self._integrations.find_one_and_update(
+            {"_id": to_object_id(integration_id)},
+            {
+                "$set": {
+                    "project_name": project_name,
+                    "integration_type": integration_type,
+                    "endpoint_url": endpoint_url,
+                    "resource_name": resource_name,
+                    "analyzer_mode": analyzer_mode,
+                    "llm_provider": llm_provider,
+                    "llm_model": llm_model,
+                    "last_status": "pending",
+                    "last_error": None,
+                    "last_fetched_count": 0,
+                    "last_detected_count": 0,
+                    "updated_at": now,
+                }
+            },
+            return_document=ReturnDocument.AFTER,
+        )
+        return integration_from_doc(doc) if doc else None
+
     def set_integration_enabled(self, integration_id: str, enabled: bool) -> ProjectIntegration | None:
         now = utc_now()
         updates: dict[str, Any] = {"enabled": enabled, "updated_at": now}
@@ -170,17 +220,36 @@ class MongoAdminRepository:
         doc = self._detections.find_one_and_update(
             {"fingerprint": detection["fingerprint"]},
             {
-                "$setOnInsert": {
-                    **detection,
-                    "created_at": now,
-                    "seen_count": 0,
-                },
                 "$set": {"last_seen_at": now},
                 "$inc": {"seen_count": 1},
             },
-            upsert=True,
             return_document=ReturnDocument.AFTER,
         )
+        if doc:
+            return detection_from_doc(doc)
+
+        doc = {
+            **detection,
+            "created_at": now,
+            "last_seen_at": now,
+            "seen_count": 1,
+        }
+        try:
+            result = self._detections.insert_one(doc)
+        except DuplicateKeyError:
+            doc = self._detections.find_one_and_update(
+                {"fingerprint": detection["fingerprint"]},
+                {
+                    "$set": {"last_seen_at": now},
+                    "$inc": {"seen_count": 1},
+                },
+                return_document=ReturnDocument.AFTER,
+            )
+            if doc:
+                return detection_from_doc(doc)
+            raise
+
+        doc["_id"] = result.inserted_id
         return detection_from_doc(doc)
 
     def list_detections(self, *, limit: int = 100) -> list[DetectionRecord]:
@@ -258,6 +327,39 @@ class InMemoryAdminRepository:
     def get_integration(self, integration_id: str) -> ProjectIntegration | None:
         doc = self._integrations.get(integration_id)
         return integration_from_doc(doc) if doc else None
+
+    def update_integration(
+        self,
+        integration_id: str,
+        *,
+        project_name: str,
+        integration_type: str,
+        endpoint_url: str,
+        resource_name: str,
+        analyzer_mode: str,
+        llm_provider: str,
+        llm_model: str | None,
+    ) -> ProjectIntegration | None:
+        doc = self._integrations.get(integration_id)
+        if not doc:
+            return None
+        doc.update(
+            {
+                "project_name": project_name,
+                "integration_type": integration_type,
+                "endpoint_url": endpoint_url,
+                "resource_name": resource_name,
+                "analyzer_mode": analyzer_mode,
+                "llm_provider": llm_provider,
+                "llm_model": llm_model,
+                "last_status": "pending",
+                "last_error": None,
+                "last_fetched_count": 0,
+                "last_detected_count": 0,
+                "updated_at": utc_now(),
+            }
+        )
+        return integration_from_doc(doc)
 
     def set_integration_enabled(self, integration_id: str, enabled: bool) -> ProjectIntegration | None:
         doc = self._integrations.get(integration_id)

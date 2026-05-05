@@ -38,10 +38,10 @@
 
         <div class="project-grid">
           {% for project in projects %}
-            <article class="project-card">
+            <a class="project-card project-card-link" href="/admin/detections?project={{ project.name }}">
               <strong>{{ project.name }}</strong>
               <span>{{ project.enabled_integration_count }} / {{ project.integration_count }} enabled integrations</span>
-            </article>
+            </a>
           {% else %}
             <p class="empty">No projects yet. Add GOA or DOBO from the Integrations menu with `demo://local` to try the local sample flow.</p>
           {% endfor %}
@@ -65,7 +65,7 @@
           {% for project_name, project_detections in detections_by_project.items() %}
             <section class="project-detection-group">
               <div class="group-heading">
-                <h3>{{ project_name }}</h3>
+                <h3><a href="/admin/detections?project={{ project_name }}">{{ project_name }}</a></h3>
                 <span>{{ project_detections | length }} detections</span>
               </div>
               <div class="detection-list">
@@ -73,7 +73,9 @@
                   <article class="detection-item">
                     <div>
                       <span class="severity {{ detection.severity }}">{{ detection.severity }}</span>
-                      <strong>{{ detection.error_type }}</strong>
+                      <strong>
+                        <a href="/admin/detections?project={{ detection.project_name }}#detection-{{ detection.id }}">{{ detection.error_type }}</a>
+                      </strong>
                     </div>
                     <p>{{ detection.summary }}</p>
                     <small>{{ detection.integration_type.value }} / {{ detection.resource_name }} / {{ detection.llm_provider }} / seen {{ detection.seen_count }} / {{ detection.last_seen_at }}</small>

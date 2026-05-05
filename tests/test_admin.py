@@ -84,7 +84,9 @@ def test_admin_can_create_project_integration_and_poll_detection() -> None:
         client.post("/admin/api/poll-now")
         detections_page = client.get("/admin/detections")
 
-    assert "Detected Anomalies By Project" in detections_page.text
+    assert "Detected Anomalies" in detections_page.text
+    assert 'name="project"' in detections_page.text
+    assert 'id="refresh-select"' in detections_page.text
     assert "DOBO" in detections_page.text
 
 
@@ -135,6 +137,121 @@ def test_admin_api_accepts_sentry_integration_shape() -> None:
     assert integration["resource_name"] == "goa-api"
     assert integration["last_status"] == "error"
     assert "no fetcher is implemented yet" in integration["last_error"]
+
+
+def test_registered_integration_can_be_edited() -> None:
+    with build_client() as client:
+        create_response = client.post(
+            "/admin/api/integrations",
+            json={
+                "project_name": "GOA",
+                "integration_type": "kibana",
+                "endpoint_url": "demo://local",
+                "resource_name": "db-*",
+                "analyzer_mode": "mock",
+                "llm_provider": "mock",
+            },
+        )
+        integration_id = create_response.json()["id"]
+        edit_page = client.get(f"/admin/integrations?edit={integration_id}")
+        update_response = client.post(
+            f"/admin/integrations/{integration_id}/edit",
+            data={
+                "project_name": "DOBO",
+                "integration_type": "kibana",
+                "endpoint_url": "demo://local",
+                "resource_name": "payments-*",
+                "analyzer_mode": "mock",
+                "llm_provider": "openai",
+                "llm_model": "gpt-test",
+            },
+            follow_redirects=False,
+        )
+        summary_response = client.get("/admin/api/summary")
+
+    integration = summary_response.json()["integrations"][0]
+    assert edit_page.status_code == 200
+    assert "Edit Integration" in edit_page.text
+    assert f'action="/admin/integrations/{integration_id}/edit"' in edit_page.text
+    assert update_response.status_code == 303
+    assert integration["project_name"] == "DOBO"
+    assert integration["resource_name"] == "payments-*"
+    assert integration["llm_provider"] == "openai"
+    assert integration["llm_model"] == "gpt-test"
+    assert integration["last_status"] == "ok"
+
+
+def test_detection_list_filters_by_project_and_exposes_error_anchors() -> None:
+    with build_client() as client:
+        client.post(
+            "/admin/api/integrations",
+            json={
+                "project_name": "GOA",
+                "integration_type": "kibana",
+                "endpoint_url": "demo://local",
+                "resource_name": "db-*",
+                "analyzer_mode": "mock",
+                "llm_provider": "mock",
+            },
+        )
+        client.post(
+            "/admin/api/integrations",
+            json={
+                "project_name": "DOBO",
+                "integration_type": "kibana",
+                "endpoint_url": "demo://local",
+                "resource_name": "payments-*",
+                "analyzer_mode": "mock",
+                "llm_provider": "mock",
+            },
+        )
+        summary_response = client.get("/admin/api/summary")
+        goa_detection = next(
+            detection for detection in summary_response.json()["detections"] if detection["project_name"] == "GOA"
+        )
+        home_response = client.get("/admin")
+        filtered_response = client.get("/admin/detections?project=GOA")
+        refresh_response = client.get("/admin/detections?project=GOA&refresh=10")
+
+    assert f'/admin/detections?project=GOA#detection-{goa_detection["id"]}' in home_response.text
+    assert 'name="project"' in filtered_response.text
+    assert '<option value="GOA" selected>GOA</option>' in filtered_response.text
+    assert f'id="detection-{goa_detection["id"]}"' in filtered_response.text
+    assert f'href="#detection-{goa_detection["id"]}"' in filtered_response.text
+    assert "db_connection_error" in filtered_response.text
+    assert '<option value="10" selected>Every 10s</option>' in refresh_response.text
+    assert 'id="filter-refresh-input" value="10"' in refresh_response.text
+
+
+def test_detection_list_normalizes_unknown_refresh_interval() -> None:
+    with build_client() as client:
+        response = client.get("/admin/detections?refresh=5")
+
+    assert response.status_code == 200
+    assert '<option value="off" selected>Off</option>' in response.text
+
+
+def test_poll_now_reuses_existing_detection_and_increments_seen_count() -> None:
+    with build_client() as client:
+        client.post(
+            "/admin/api/integrations",
+            json={
+                "project_name": "GOA",
+                "integration_type": "kibana",
+                "endpoint_url": "demo://local",
+                "resource_name": "db-*",
+                "analyzer_mode": "mock",
+                "llm_provider": "mock",
+            },
+        )
+        poll_response = client.post("/admin/api/poll-now")
+        summary_response = client.get("/admin/api/summary")
+
+    detections = summary_response.json()["detections"]
+    assert poll_response.status_code == 200
+    assert poll_response.json()[0]["detected_count"] == 1
+    assert len(detections) == 1
+    assert detections[0]["seen_count"] == 2
 
 
 def test_disable_integration_immediately_marks_status_disabled() -> None:
