@@ -1,0 +1,8 @@
+2026-04-22T14:11:20Z ERROR request_id=req-123 service=user-api method=GET path=/users/42/profile status=500
+Traceback (most recent call last):
+  File "/srv/app/api/profile.py", line 41, in get_profile
+    return build_profile_response(user)
+  File "/srv/app/services/profile_builder.py", line 18, in build_profile_response
+    return {"email": user.email, "name": user.name}
+AttributeError: 'NoneType' object has no attribute 'email'
+

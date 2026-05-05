@@ -1,0 +1,6 @@
+2026-04-22T15:02:44Z ERROR request_id=req-887 service=order-api method=POST path=/orders status=504
+TimeoutError: database lookup timed out after 3000ms
+psycopg2.OperationalError: connection to server at "orders-db" (10.10.0.8), port 5432 failed: Connection refused
+DETAIL: connection pool exhausted while creating a new session
+INFO retry_count=2 upstream=postgres duration_ms=3021
+

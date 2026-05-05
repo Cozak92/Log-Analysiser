@@ -1,0 +1,6 @@
+2026-04-22T16:48:01Z INFO request_id=req-901 service=payments method=POST path=/payments status=500 duration_ms=1278
+java.lang.NullPointerException: Cannot invoke "Payment.getAmount()" because "payment" is null
+    at com.example.payments.PaymentHandler.buildReceipt(PaymentHandler.java:57)
+    at com.example.payments.PaymentController.createPayment(PaymentController.java:31)
+upstream connect error or disconnect/reset before headers. reset reason: connection termination
+

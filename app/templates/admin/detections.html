@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Detection List</title>
+    <link rel="stylesheet" href="/static/admin.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Log Analysis MVP</p>
+        <h1>Detection List</h1>
+      </div>
+      <nav>
+        <a href="/admin">Sources</a>
+        <a href="/admin/detections" aria-current="page">Detections</a>
+      </nav>
+    </header>
+
+    <main class="layout">
+      {% if db_error %}
+        <section class="notice danger">MongoDB operation failed: {{ db_error }}</section>
+      {% endif %}
+
+      <section class="panel">
+        <div class="panel-heading">
+          <div>
+            <h2>Detected Anomalies</h2>
+            <p>Latest anomaly candidates detected from registered Kibana sources.</p>
+          </div>
+          <form action="/admin/poll-now" method="post">
+            <button type="submit" class="secondary">Poll now</button>
+          </form>
+        </div>
+
+        <div class="detection-list expanded">
+          {% for detection in detections %}
+            <article class="detection-item">
+              <div class="detection-head">
+                <div>
+                  <span class="severity {{ detection.severity }}">{{ detection.severity }}</span>
+                  <strong>{{ detection.error_type }}</strong>
+                </div>
+                <small>{{ detection.last_seen_at }}</small>
+              </div>
+              <p>{{ detection.summary }}</p>
+              <dl>
+                <div><dt>Data view</dt><dd>{{ detection.data_view_name }}</dd></div>
+                <div><dt>Analyzer</dt><dd>{{ detection.analyzer_used }}</dd></div>
+                <div><dt>LLM provider</dt><dd>{{ detection.llm_provider }}{% if detection.llm_model %} / {{ detection.llm_model }}{% endif %}</dd></div>
+                <div><dt>Seen</dt><dd>{{ detection.seen_count }}</dd></div>
+              </dl>
+              <details>
+                <summary>Raw log</summary>
+                <pre>{{ detection.raw_log }}</pre>
+              </details>
+              {% if detection.report_markdown %}
+                <details>
+                  <summary>Analysis report</summary>
+                  <pre>{{ detection.report_markdown }}</pre>
+                </details>
+              {% endif %}
+            </article>
+          {% else %}
+            <p class="empty">No detections yet.</p>
+          {% endfor %}
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
