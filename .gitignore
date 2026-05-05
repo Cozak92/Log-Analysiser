@@ -1,0 +1,11 @@
+.venv/
+.tooling/
+.idea/
+.remote-check/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+analysis_report.md
+*.egg-info/
