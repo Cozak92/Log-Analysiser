@@ -91,7 +91,13 @@ Admin page:
 http://127.0.0.1:8000/admin
 ```
 
-로컬에서 실제 Kibana 없이 흐름을 확인하려면 어드민 화면에서 Project name에 `GOA` 또는 `DOBO`, Integration type에 `kibana`, Endpoint URL에 `demo://local`, Resource name에 `payments-*` 또는 `db-*`를 입력한 뒤 `Poll now`를 누르면 샘플 로그 기반 탐지 목록이 프로젝트별로 생성됩니다.
+Project Integration 관리:
+
+```bash
+http://127.0.0.1:8000/admin/integrations
+```
+
+로컬에서 실제 Kibana 없이 흐름을 확인하려면 Integrations 메뉴에서 Project name에 `GOA` 또는 `DOBO`, Integration type에 `kibana`, Endpoint URL에 `demo://local`, Resource name에 `payments-*` 또는 `db-*`를 입력한 뒤 `Poll now`를 누르면 샘플 로그 기반 탐지 목록이 프로젝트별로 생성됩니다. Integration type을 `kibana` 또는 `sentry`로 바꾸면 입력해야 하는 endpoint/resource 필드의 라벨과 도움말이 함께 변경됩니다.
 
 ### 3. CLI 실행
 
@@ -150,7 +156,7 @@ Integration-level LLM provider options are available in the admin page. Built-in
 docker compose up --build
 ```
 
-구성에는 FastAPI 앱과 MongoDB가 포함됩니다. 앱은 등록된 project integration을 10초 주기로 polling하고, 분석 결과가 `high` 또는 `critical`이거나 명확한 에러 유형으로 분류되면 MongoDB에 프로젝트별 탐지 항목으로 저장합니다. 현재 구현된 integration fetcher는 Kibana이며, Sentry 등은 `app/integrations` registry에 fetcher를 추가하는 방식으로 확장합니다.
+구성에는 FastAPI 앱과 MongoDB가 포함됩니다. 앱은 등록된 project integration을 10초 주기로 polling하고, 분석 결과가 `high` 또는 `critical`이거나 명확한 에러 유형으로 분류되면 MongoDB에 프로젝트별 탐지 항목으로 저장합니다. 현재 실제 수집 fetcher는 Kibana이며, Sentry는 설정 shape과 UI만 먼저 열어두었습니다. Sentry 수집은 `app/integrations` registry에 fetcher를 추가하는 방식으로 확장합니다.
 
 ## CLI 사용 예시
 

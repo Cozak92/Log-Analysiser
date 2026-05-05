@@ -14,6 +14,7 @@
       </div>
       <nav>
         <a href="/admin" aria-current="page">Projects</a>
+        <a href="/admin/integrations">Integrations</a>
         <a href="/admin/detections">Detections</a>
       </nav>
     </header>
@@ -29,159 +30,21 @@
       <section class="panel">
         <div class="panel-heading">
           <div>
-            <h2>Project Integration</h2>
-            <p>Register observability integrations per project. Kibana is supported now; Sentry can be added behind the same shape later.</p>
-          </div>
-          <form action="/admin/poll-now" method="post">
-            <button type="submit" class="secondary">Poll now</button>
-          </form>
-        </div>
-
-        <form class="integration-form integration-form-extended" action="/admin/integrations" method="post">
-          <label>
-            Project name
-            <input name="project_name" type="text" placeholder="GOA or DOBO" required>
-          </label>
-          <label>
-            Integration type
-            <select name="integration_type">
-              {% for integration_type in integration_type_options %}
-                <option value="{{ integration_type }}">{{ integration_type }}</option>
-              {% endfor %}
-              {% for integration_type in planned_integration_type_options %}
-                <option value="{{ integration_type }}" disabled>{{ integration_type }} (planned)</option>
-              {% endfor %}
-            </select>
-          </label>
-          <label>
-            Endpoint URL
-            <input name="endpoint_url" type="text" placeholder="https://kibana.example.com or demo://local" required>
-          </label>
-          <label>
-            Resource name
-            <input name="resource_name" type="text" placeholder="Kibana data view, e.g. payments-*" required>
-          </label>
-          <label>
-            Analyzer mode
-            <select name="analyzer_mode">
-              <option value="auto">auto</option>
-              <option value="mock">mock</option>
-              <option value="rule-based">rule-based</option>
-              <option value="llm">llm</option>
-            </select>
-          </label>
-          <label>
-            LLM provider
-            <select name="llm_provider" id="llm-provider-select">
-              {% for provider in provider_options %}
-                <option value="{{ provider }}">{{ provider }}</option>
-              {% endfor %}
-            </select>
-          </label>
-          <label id="custom-provider-label" class="disabled-field">
-            Custom provider
-            <input id="custom-provider-input" name="custom_llm_provider" type="text" placeholder="required when provider is custom" disabled>
-          </label>
-          <label>
-            LLM model
-            <input name="llm_model" type="text" list="llm-model-options" placeholder="optional">
-            <datalist id="llm-model-options">
-              <option value="gpt-4.1-mini"></option>
-              <option value="gpt-4.1"></option>
-              <option value="claude-3-5-sonnet-latest"></option>
-              <option value="gemini-1.5-pro"></option>
-              <option value="gpt-4o-mini"></option>
-              <option value="llama3.1"></option>
-            </datalist>
-          </label>
-          <button type="submit">Add integration</button>
-        </form>
-        {% if form_error %}
-          <p class="form-error">{{ form_error }}</p>
-        {% endif %}
-      </section>
-
-      <section class="panel">
-        <div class="panel-heading">
-          <div>
             <h2>Projects</h2>
-            <p>Each project can own one or more enabled observability integrations.</p>
+            <p>Project-level view of registered observability integrations and detected anomaly candidates.</p>
           </div>
+          <a class="button-link secondary" href="/admin/integrations">Manage integrations</a>
         </div>
 
         <div class="project-grid">
           {% for project in projects %}
             <article class="project-card">
               <strong>{{ project.name }}</strong>
-              <span>{{ project.enabled_integration_count }} / {{ project.integration_count }} enabled</span>
+              <span>{{ project.enabled_integration_count }} / {{ project.integration_count }} enabled integrations</span>
             </article>
           {% else %}
-            <p class="empty">No projects yet. Add GOA or DOBO with `demo://local` to try the local sample flow.</p>
+            <p class="empty">No projects yet. Add GOA or DOBO from the Integrations menu with `demo://local` to try the local sample flow.</p>
           {% endfor %}
-        </div>
-      </section>
-
-      <section class="panel">
-        <div class="panel-heading">
-          <div>
-            <h2>Registered Integrations</h2>
-            <p>Only enabled integrations are collected by the background poller.</p>
-          </div>
-        </div>
-
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Project</th>
-                <th>Type</th>
-                <th>Endpoint</th>
-                <th>Resource</th>
-                <th>Analyzer</th>
-                <th>Provider</th>
-                <th>Status</th>
-                <th>Last poll</th>
-                <th>Fetched</th>
-                <th>Detected</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for integration in integrations %}
-                <tr>
-                  <td><strong>{{ integration.project_name }}</strong></td>
-                  <td>{{ integration.integration_type.value }}</td>
-                  <td class="mono">{{ integration.endpoint_url }}</td>
-                  <td class="mono">{{ integration.resource_name }}</td>
-                  <td>{{ integration.analyzer_mode.value }}</td>
-                  <td>
-                    {{ integration.llm_provider }}
-                    {% if integration.llm_model %}
-                      <span class="muted">/ {{ integration.llm_model }}</span>
-                    {% endif %}
-                  </td>
-                  <td><span class="status {{ integration.last_status }}">{{ integration.last_status }}</span></td>
-                  <td>{{ integration.last_polled_at or "-" }}</td>
-                  <td>{{ integration.last_fetched_count }}</td>
-                  <td>{{ integration.last_detected_count }}</td>
-                  <td>
-                    <form action="/admin/integrations/{{ integration.id }}/toggle" method="post">
-                      <button type="submit" class="small">{{ "Disable" if integration.enabled else "Enable" }}</button>
-                    </form>
-                  </td>
-                </tr>
-                {% if integration.last_error %}
-                  <tr class="error-row">
-                    <td colspan="11">{{ integration.last_error }}</td>
-                  </tr>
-                {% endif %}
-              {% else %}
-                <tr>
-                  <td colspan="11" class="empty">No project integrations yet. Use `demo://local` with a Kibana data view name to try samples.</td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
         </div>
       </section>
 
@@ -191,7 +54,12 @@
             <h2>Latest Detections By Project</h2>
             <p>Detected anomalies are grouped by project so GOA, DOBO, and future domains can be reviewed separately.</p>
           </div>
-          <a class="button-link secondary" href="/admin/detections">Open list</a>
+          <div class="action-row">
+            <form action="/admin/poll-now" method="post">
+              <button type="submit" class="secondary">Poll now</button>
+            </form>
+            <a class="button-link secondary" href="/admin/detections">Open list</a>
+          </div>
         </div>
         <div class="project-detections">
           {% for project_name, project_detections in detections_by_project.items() %}
@@ -219,23 +87,5 @@
         </div>
       </section>
     </main>
-    <script>
-      const providerSelect = document.querySelector("#llm-provider-select");
-      const customProviderInput = document.querySelector("#custom-provider-input");
-      const customProviderLabel = document.querySelector("#custom-provider-label");
-
-      function syncCustomProviderState() {
-        const enabled = providerSelect.value === "custom";
-        customProviderInput.disabled = !enabled;
-        customProviderInput.required = enabled;
-        customProviderLabel.classList.toggle("disabled-field", !enabled);
-        if (!enabled) {
-          customProviderInput.value = "";
-        }
-      }
-
-      providerSelect.addEventListener("change", syncCustomProviderState);
-      syncCustomProviderState();
-    </script>
   </body>
 </html>

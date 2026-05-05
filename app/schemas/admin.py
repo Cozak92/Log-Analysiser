@@ -28,8 +28,8 @@ class IntegrationType(str, Enum):
     SENTRY = "sentry"
 
 
-SUPPORTED_INTEGRATION_TYPES = (IntegrationType.KIBANA.value,)
-PLANNED_INTEGRATION_TYPES = (IntegrationType.SENTRY.value,)
+SUPPORTED_INTEGRATION_TYPES = (IntegrationType.KIBANA.value, IntegrationType.SENTRY.value)
+PLANNED_INTEGRATION_TYPES: tuple[str, ...] = ()
 
 
 class ProjectIntegrationCreate(BaseModel):

@@ -23,10 +23,12 @@
 - CLI: `python -m app.cli --file samples/error.log`
 - Markdown report 생성
 - FastAPI admin page: `/admin`
+- Integration management page: `/admin/integrations`
 - MongoDB 기반 탐지/설정 저장
 - 프로젝트별 Observability Integration 등록
-- 현재 구현된 integration fetcher는 Kibana
-- Sentry 등은 같은 `ProjectIntegration` 모델 뒤에 fetcher를 추가하는 구조
+- 현재 실제 수집 fetcher는 Kibana
+- Sentry는 integration type과 입력 shape은 열려 있지만 fetcher는 아직 미구현
+- Integration type 선택에 따라 endpoint/resource field label, placeholder, help text가 변경됨
 - LLM provider는 integration별로 설정 가능
 - `custom` provider 선택 시에만 custom provider input 활성화
 
@@ -38,7 +40,7 @@
 
 - `Project`: 예시 `GOA`, `DOBO`
 - `ProjectIntegration`: 프로젝트에 연결된 관측 도구 설정
-- `IntegrationType`: 현재 `kibana` 지원, `sentry`는 planned
+- `IntegrationType`: `kibana`, `sentry`; 실제 fetcher는 현재 `kibana`만 구현
 - `DetectionRecord`: LLM/rule 기반 분석 결과로 이상 징후라고 판단된 항목
 
 중요 필드:
@@ -64,7 +66,8 @@
 - `app/integrations/kibana.py`: Kibana log fetcher
 - `app/integrations/registry.py`: integration type별 fetcher registry
 - `app/workers/integration_poller.py`: background polling worker
-- `app/templates/admin/index.html`: project/integration 등록 및 요약 화면
+- `app/templates/admin/index.html`: project 요약 및 최신 detection 화면
+- `app/templates/admin/integrations.html`: project integration 등록/목록/토글 화면
 - `app/templates/admin/detections.html`: 프로젝트별 detection 목록
 - `app/static/admin.css`: admin style
 - `tests/test_admin.py`: admin/project/integration 관련 핵심 테스트
@@ -105,6 +108,12 @@ Admin:
 http://127.0.0.1:8000/admin
 ```
 
+Integrations:
+
+```text
+http://127.0.0.1:8000/admin/integrations
+```
+
 Docker Compose:
 
 ```powershell
@@ -141,6 +150,8 @@ docker compose config
 - LLM provider: `mock`
 
 그 뒤 `Poll now`를 누르면 샘플 로그 기반 detection이 프로젝트별로 표시됩니다.
+
+Integration type을 `sentry`로 선택하면 UI의 endpoint/resource 필드가 Sentry URL과 project slug 기준으로 바뀝니다. 다만 Sentry fetcher는 아직 없으므로 polling 시 fetcher 미구현 에러가 정상입니다.
 
 ## LLM Provider 구조
 
@@ -179,6 +190,7 @@ PR base를 잡을 때는 아래처럼 쌓는 것이 자연스럽습니다.
 - deploy, GitHub Actions, Slack 알림, 자동 PR 생성, 자동 코드 수정 기능은 아직 구현하지 않습니다.
 - admin 이름은 Kibana 종속적으로 되돌리지 말고 `Observability`, `Integration`, `Project` 같은 범용 용어를 유지합니다.
 - 새로운 관측 도구를 추가할 때는 `ProjectIntegration` 모델을 재사용하고 `IntegrationFetcherRegistry`에 fetcher를 추가합니다.
+- integration 등록 UI는 `/admin/integrations`에 두고, `/admin` 홈은 프로젝트 요약/최신 탐지 중심으로 유지합니다.
 - 테스트에서는 MongoDB 대신 `Settings(mongo_uri="memory://")`를 사용합니다.
 - Windows 환경에서 `rg` 실행이 `Access is denied`로 실패한 적이 있으므로, 검색이 막히면 `Get-ChildItem | Select-String`을 사용합니다.
 - `gh` CLI는 설치되어 있지 않았습니다. PR 생성은 GitHub compare URL을 사용했습니다.

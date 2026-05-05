@@ -30,13 +30,18 @@ def admin_home(request: Request) -> HTMLResponse:
     return render_admin_page(request, template_name="admin/index.html")
 
 
+@router.get("/integrations", response_class=HTMLResponse)
+def integration_list(request: Request) -> HTMLResponse:
+    return render_admin_page(request, template_name="admin/integrations.html")
+
+
 @router.get("/detections", response_class=HTMLResponse)
 def detection_list(request: Request) -> HTMLResponse:
     return render_admin_page(request, template_name="admin/detections.html")
 
 
 @router.post("/integrations", response_model=None)
-def create_integration(
+async def create_integration(
     request: Request,
     project_name: str = Form(...),
     integration_type: str = Form("kibana"),
@@ -59,7 +64,7 @@ def create_integration(
             custom_llm_provider=custom_llm_provider,
             llm_model=llm_model or None,
         )
-        repository.upsert_integration(
+        integration = repository.upsert_integration(
             project_name=payload.project_name,
             integration_type=payload.integration_type.value,
             endpoint_url=payload.endpoint_url,
@@ -68,11 +73,12 @@ def create_integration(
             llm_provider=payload.llm_provider,
             llm_model=payload.llm_model,
         )
+        await get_detection_service(request).poll_integration(integration)
     except (ValidationError, ValueError) as exc:
-        return render_admin_page(request, template_name="admin/index.html", form_error=str(exc))
+        return render_admin_page(request, template_name="admin/integrations.html", form_error=str(exc))
     except Exception as exc:
-        return render_admin_page(request, template_name="admin/index.html", db_error=str(exc))
-    return RedirectResponse(url="/admin", status_code=303)
+        return render_admin_page(request, template_name="admin/integrations.html", db_error=str(exc))
+    return RedirectResponse(url="/admin/integrations", status_code=303)
 
 
 @router.post("/integrations/{integration_id}/toggle")
@@ -82,7 +88,7 @@ def toggle_integration(request: Request, integration_id: str) -> RedirectRespons
     if not integration:
         raise HTTPException(status_code=404, detail="Project integration not found.")
     repository.set_integration_enabled(integration_id, not integration.enabled)
-    return RedirectResponse(url="/admin", status_code=303)
+    return RedirectResponse(url="/admin/integrations", status_code=303)
 
 
 @router.post("/poll-now")
@@ -104,7 +110,7 @@ def api_summary(request: Request) -> AdminSummary:
 
 
 @router.post("/api/integrations", response_model=dict)
-def api_create_integration(payload: ProjectIntegrationCreate, request: Request) -> dict[str, str]:
+async def api_create_integration(payload: ProjectIntegrationCreate, request: Request) -> dict[str, str]:
     repository = get_repository(request)
     integration = repository.upsert_integration(
         project_name=payload.project_name,
@@ -115,12 +121,13 @@ def api_create_integration(payload: ProjectIntegrationCreate, request: Request) 
         llm_provider=payload.llm_provider,
         llm_model=payload.llm_model,
     )
+    await get_detection_service(request).poll_integration(integration)
     return {"id": integration.id}
 
 
 @router.post("/api/sources", response_model=dict)
-def api_create_source_compat(payload: ProjectIntegrationCreate, request: Request) -> dict[str, str]:
-    return api_create_integration(payload, request)
+async def api_create_source_compat(payload: ProjectIntegrationCreate, request: Request) -> dict[str, str]:
+    return await api_create_integration(payload, request)
 
 
 @router.post("/api/poll-now", response_model=list[PollResult])

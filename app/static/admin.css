@@ -136,6 +136,13 @@ button:hover,
   margin-bottom: 0;
 }
 
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
 .notice.warning {
   background: var(--warning-bg);
   color: var(--warning);
@@ -168,6 +175,13 @@ label {
   font-weight: 700;
 }
 
+.field-help {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
 input {
   width: 100%;
   border: 1px solid var(--line);
@@ -189,7 +203,7 @@ select {
 
 .source-form-extended,
 .integration-form-extended {
-  grid-template-columns: minmax(120px, 0.7fr) minmax(120px, 0.6fr) minmax(220px, 1.3fr) minmax(160px, 0.8fr) minmax(120px, 0.6fr) minmax(140px, 0.7fr) minmax(150px, 0.7fr) minmax(150px, 0.7fr) auto;
+  grid-template-columns: minmax(120px, 0.7fr) minmax(120px, 0.6fr) minmax(220px, 1.2fr) minmax(180px, 0.9fr) minmax(120px, 0.6fr) minmax(140px, 0.7fr) minmax(150px, 0.7fr) minmax(150px, 0.7fr) auto;
 }
 
 .muted {
