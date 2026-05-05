@@ -25,7 +25,17 @@ class DetectionService:
         self._fetcher_registry = fetcher_registry or IntegrationFetcherRegistry(settings)
 
     async def poll_integration(self, integration: ProjectIntegration) -> PollResult:
+        current_integration = self._fresh_enabled_integration(integration)
+        if current_integration is None:
+            return PollResult(integration_id=integration.id, status="disabled")
+        integration = current_integration
+
         fetch_result = await self._fetcher_registry.fetch_recent_logs(integration)
+        current_integration = self._fresh_enabled_integration(integration)
+        if current_integration is None:
+            return PollResult(integration_id=integration.id, status="disabled")
+        integration = current_integration
+
         if fetch_result.error:
             self._repository.update_integration_poll_result(
                 integration.id,
@@ -39,6 +49,11 @@ class DetectionService:
         detected_count = 0
         analyzer_mode = self._integration_analyzer_mode(integration)
         for fetched_log in fetch_result.logs:
+            current_integration = self._fresh_enabled_integration(integration)
+            if current_integration is None:
+                return PollResult(integration_id=integration.id, status="disabled", fetched_count=len(fetch_result.logs))
+            integration = current_integration
+
             response = self._analysis_service.analyze_text(
                 fetched_log.raw_log,
                 analyzer_mode=analyzer_mode,
@@ -71,6 +86,14 @@ class DetectionService:
                 }
             )
 
+        if self._fresh_enabled_integration(integration) is None:
+            return PollResult(
+                integration_id=integration.id,
+                status="disabled",
+                fetched_count=len(fetch_result.logs),
+                detected_count=detected_count,
+            )
+
         self._repository.update_integration_poll_result(
             integration.id,
             status="ok",
@@ -99,6 +122,12 @@ class DetectionService:
             return AnalyzerMode(self._settings.default_analyzer_mode)
         except ValueError:
             return AnalyzerMode.AUTO
+
+    def _fresh_enabled_integration(self, integration: ProjectIntegration) -> ProjectIntegration | None:
+        current_integration = self._repository.get_integration(integration.id)
+        if current_integration is None or not current_integration.enabled:
+            return None
+        return current_integration
 
     @staticmethod
     def _is_anomalous(severity: SeverityLevel, error_type: str) -> bool:

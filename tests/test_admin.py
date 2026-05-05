@@ -97,3 +97,29 @@ def test_admin_api_accepts_custom_llm_provider() -> None:
     assert integration["analyzer_mode"] == "llm"
     assert integration["llm_provider"] == "internal-gateway"
     assert integration["llm_model"] == "incident-model-v1"
+
+
+def test_disable_integration_immediately_marks_status_disabled() -> None:
+    with build_client() as client:
+        create_response = client.post(
+            "/admin/api/integrations",
+            json={
+                "project_name": "GOA",
+                "integration_type": "kibana",
+                "endpoint_url": "demo://local",
+                "resource_name": "db-*",
+                "analyzer_mode": "mock",
+                "llm_provider": "mock",
+            },
+        )
+        integration_id = create_response.json()["id"]
+        toggle_response = client.post(f"/admin/integrations/{integration_id}/toggle", follow_redirects=False)
+        poll_response = client.post("/admin/api/poll-now")
+        summary_response = client.get("/admin/api/summary")
+
+    integration = summary_response.json()["integrations"][0]
+    assert toggle_response.status_code == 303
+    assert poll_response.json() == []
+    assert integration["enabled"] is False
+    assert integration["last_status"] == "disabled"
+    assert summary_response.json()["detections"] == []
