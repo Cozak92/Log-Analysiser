@@ -9,8 +9,8 @@ services:
       LOG_ANALYZER_PROVIDER: mock
       MONGO_URI: mongodb://mongodb:27017
       MONGO_DB_NAME: log_analysis_mvp
-      KIBANA_POLL_ENABLED: "true"
-      KIBANA_POLL_INTERVAL_SECONDS: "10"
+      OBSERVABILITY_POLL_ENABLED: "true"
+      OBSERVABILITY_POLL_INTERVAL_SECONDS: "10"
     depends_on:
       - mongodb
     volumes:

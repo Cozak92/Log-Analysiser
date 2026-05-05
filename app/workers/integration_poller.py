@@ -7,7 +7,7 @@ from app.config import Settings
 from app.services.detection_service import DetectionService
 
 
-class KibanaPollingWorker:
+class IntegrationPollingWorker:
     def __init__(self, *, settings: Settings, detection_service: DetectionService) -> None:
         self._settings = settings
         self._detection_service = detection_service
@@ -18,7 +18,7 @@ class KibanaPollingWorker:
         if self._task and not self._task.done():
             return
         self._stop_event.clear()
-        self._task = asyncio.create_task(self._run(), name="kibana-polling-worker")
+        self._task = asyncio.create_task(self._run(), name="integration-polling-worker")
 
     async def stop(self) -> None:
         self._stop_event.set()
@@ -29,7 +29,7 @@ class KibanaPollingWorker:
 
     async def poll_once(self) -> None:
         try:
-            await self._detection_service.poll_all_enabled_sources()
+            await self._detection_service.poll_all_enabled_integrations()
         except Exception:
             # The poller must never take down the admin/API server.
             return
@@ -40,5 +40,5 @@ class KibanaPollingWorker:
             with contextlib.suppress(asyncio.TimeoutError):
                 await asyncio.wait_for(
                     self._stop_event.wait(),
-                    timeout=self._settings.kibana_poll_interval_seconds,
+                    timeout=self._settings.poll_interval_seconds,
                 )

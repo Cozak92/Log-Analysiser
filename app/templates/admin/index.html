@@ -3,17 +3,17 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Log Analysis Admin</title>
+    <title>Observability Admin</title>
     <link rel="stylesheet" href="/static/admin.css">
   </head>
   <body>
     <header class="topbar">
       <div>
         <p class="eyebrow">Log Analysis MVP</p>
-        <h1>Kibana Polling Admin</h1>
+        <h1>Project Observability Admin</h1>
       </div>
       <nav>
-        <a href="/admin" aria-current="page">Sources</a>
+        <a href="/admin" aria-current="page">Projects</a>
         <a href="/admin/detections">Detections</a>
       </nav>
     </header>
@@ -29,22 +29,37 @@
       <section class="panel">
         <div class="panel-heading">
           <div>
-            <h2>Kibana Source</h2>
-            <p>Each source can choose its analyzer mode, provider, and model.</p>
+            <h2>Project Integration</h2>
+            <p>Register observability integrations per project. Kibana is supported now; Sentry can be added behind the same shape later.</p>
           </div>
           <form action="/admin/poll-now" method="post">
             <button type="submit" class="secondary">Poll now</button>
           </form>
         </div>
 
-        <form class="source-form source-form-extended" action="/admin/sources" method="post">
+        <form class="integration-form integration-form-extended" action="/admin/integrations" method="post">
           <label>
-            Kibana URL
-            <input name="kibana_url" type="text" placeholder="https://kibana.example.com or demo://local" required>
+            Project name
+            <input name="project_name" type="text" placeholder="GOA or DOBO" required>
           </label>
           <label>
-            Data view name
-            <input name="data_view_name" type="text" placeholder="payments-*" required>
+            Integration type
+            <select name="integration_type">
+              {% for integration_type in integration_type_options %}
+                <option value="{{ integration_type }}">{{ integration_type }}</option>
+              {% endfor %}
+              {% for integration_type in planned_integration_type_options %}
+                <option value="{{ integration_type }}" disabled>{{ integration_type }} (planned)</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>
+            Endpoint URL
+            <input name="endpoint_url" type="text" placeholder="https://kibana.example.com or demo://local" required>
+          </label>
+          <label>
+            Resource name
+            <input name="resource_name" type="text" placeholder="Kibana data view, e.g. payments-*" required>
           </label>
           <label>
             Analyzer mode
@@ -79,7 +94,7 @@
               <option value="llama3.1"></option>
             </datalist>
           </label>
-          <button type="submit">Add source</button>
+          <button type="submit">Add integration</button>
         </form>
         {% if form_error %}
           <p class="form-error">{{ form_error }}</p>
@@ -89,8 +104,28 @@
       <section class="panel">
         <div class="panel-heading">
           <div>
-            <h2>Registered Sources</h2>
-            <p>Only enabled sources are collected by the background poller.</p>
+            <h2>Projects</h2>
+            <p>Each project can own one or more enabled observability integrations.</p>
+          </div>
+        </div>
+
+        <div class="project-grid">
+          {% for project in projects %}
+            <article class="project-card">
+              <strong>{{ project.name }}</strong>
+              <span>{{ project.enabled_integration_count }} / {{ project.integration_count }} enabled</span>
+            </article>
+          {% else %}
+            <p class="empty">No projects yet. Add GOA or DOBO with `demo://local` to try the local sample flow.</p>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <div>
+            <h2>Registered Integrations</h2>
+            <p>Only enabled integrations are collected by the background poller.</p>
           </div>
         </div>
 
@@ -98,8 +133,10 @@
           <table>
             <thead>
               <tr>
-                <th>Kibana</th>
-                <th>Data view</th>
+                <th>Project</th>
+                <th>Type</th>
+                <th>Endpoint</th>
+                <th>Resource</th>
                 <th>Analyzer</th>
                 <th>Provider</th>
                 <th>Status</th>
@@ -110,35 +147,37 @@
               </tr>
             </thead>
             <tbody>
-              {% for source in sources %}
+              {% for integration in integrations %}
                 <tr>
-                  <td class="mono">{{ source.kibana_url }}</td>
-                  <td class="mono">{{ source.data_view_name }}</td>
-                  <td>{{ source.analyzer_mode.value }}</td>
+                  <td><strong>{{ integration.project_name }}</strong></td>
+                  <td>{{ integration.integration_type.value }}</td>
+                  <td class="mono">{{ integration.endpoint_url }}</td>
+                  <td class="mono">{{ integration.resource_name }}</td>
+                  <td>{{ integration.analyzer_mode.value }}</td>
                   <td>
-                    {{ source.llm_provider }}
-                    {% if source.llm_model %}
-                      <span class="muted">/ {{ source.llm_model }}</span>
+                    {{ integration.llm_provider }}
+                    {% if integration.llm_model %}
+                      <span class="muted">/ {{ integration.llm_model }}</span>
                     {% endif %}
                   </td>
-                  <td><span class="status {{ source.last_status }}">{{ source.last_status }}</span></td>
-                  <td>{{ source.last_polled_at or "-" }}</td>
-                  <td>{{ source.last_fetched_count }}</td>
-                  <td>{{ source.last_detected_count }}</td>
+                  <td><span class="status {{ integration.last_status }}">{{ integration.last_status }}</span></td>
+                  <td>{{ integration.last_polled_at or "-" }}</td>
+                  <td>{{ integration.last_fetched_count }}</td>
+                  <td>{{ integration.last_detected_count }}</td>
                   <td>
-                    <form action="/admin/sources/{{ source.id }}/toggle" method="post">
-                      <button type="submit" class="small">{{ "Disable" if source.enabled else "Enable" }}</button>
+                    <form action="/admin/integrations/{{ integration.id }}/toggle" method="post">
+                      <button type="submit" class="small">{{ "Disable" if integration.enabled else "Enable" }}</button>
                     </form>
                   </td>
                 </tr>
-                {% if source.last_error %}
+                {% if integration.last_error %}
                   <tr class="error-row">
-                    <td colspan="9">{{ source.last_error }}</td>
+                    <td colspan="11">{{ integration.last_error }}</td>
                   </tr>
                 {% endif %}
               {% else %}
                 <tr>
-                  <td colspan="9" class="empty">No Kibana sources yet. Use `demo://local` to try the local sample flow.</td>
+                  <td colspan="11" class="empty">No project integrations yet. Use `demo://local` with a Kibana data view name to try samples.</td>
                 </tr>
               {% endfor %}
             </tbody>
@@ -149,21 +188,31 @@
       <section class="panel">
         <div class="panel-heading">
           <div>
-            <h2>Latest Detections</h2>
-            <p>Detected anomalies are stored with the source-level provider settings that produced them.</p>
+            <h2>Latest Detections By Project</h2>
+            <p>Detected anomalies are grouped by project so GOA, DOBO, and future domains can be reviewed separately.</p>
           </div>
           <a class="button-link secondary" href="/admin/detections">Open list</a>
         </div>
-        <div class="detection-list">
-          {% for detection in detections[:5] %}
-            <article class="detection-item">
-              <div>
-                <span class="severity {{ detection.severity }}">{{ detection.severity }}</span>
-                <strong>{{ detection.error_type }}</strong>
+        <div class="project-detections">
+          {% for project_name, project_detections in detections_by_project.items() %}
+            <section class="project-detection-group">
+              <div class="group-heading">
+                <h3>{{ project_name }}</h3>
+                <span>{{ project_detections | length }} detections</span>
               </div>
-              <p>{{ detection.summary }}</p>
-              <small>{{ detection.data_view_name }} / {{ detection.llm_provider }} / seen {{ detection.seen_count }} / {{ detection.last_seen_at }}</small>
-            </article>
+              <div class="detection-list">
+                {% for detection in project_detections[:5] %}
+                  <article class="detection-item">
+                    <div>
+                      <span class="severity {{ detection.severity }}">{{ detection.severity }}</span>
+                      <strong>{{ detection.error_type }}</strong>
+                    </div>
+                    <p>{{ detection.summary }}</p>
+                    <small>{{ detection.integration_type.value }} / {{ detection.resource_name }} / {{ detection.llm_provider }} / seen {{ detection.seen_count }} / {{ detection.last_seen_at }}</small>
+                  </article>
+                {% endfor %}
+              </div>
+            </section>
           {% else %}
             <p class="empty">No detections yet.</p>
           {% endfor %}
